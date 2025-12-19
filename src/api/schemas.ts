@@ -10,7 +10,7 @@ export const IntentPostSchema = z.object({
   agentId: z.string().min(1).max(120),
   files: z.array(z.string().min(1)).min(1).max(200),
   boundaries: z.string().max(4000).optional(),
-  acceptanceCriteria: z.string().max(4000).optional()
+  acceptanceCriteria: z.string().min(10).max(4000)
 });
 
 export const ClaimCreateSchema = z.object({
