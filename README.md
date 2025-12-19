@@ -37,6 +37,30 @@ Default endpoints:
 
 - API: `http://localhost:4177/api`
 - WebSocket: `ws://localhost:4177/ws`
+- Dashboard: `http://localhost:5174` (see Frontend section)
+
+## Frontend Dashboard
+
+HALL includes a web dashboard to visualise agent activity in real-time.
+
+```bash
+# Terminal 1: Start the backend
+npm run dev
+
+# Terminal 2: Start the frontend
+cd frontend
+npm install
+npm run dev
+```
+
+Open `http://localhost:5174` to see the Agent Lobby - a reddit-style feed showing:
+
+- **Tasks** being worked on
+- **Intents** declared by agents
+- **Claims** on files (with expiry timers)
+- **Evidence** attached as proof of work
+
+Filter by activity type or agent, with auto-refresh every 10 seconds.
 
 ## CLI examples
 

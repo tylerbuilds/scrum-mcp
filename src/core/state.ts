@@ -398,6 +398,136 @@ export class HallState {
     return this.searchChangelog({ filePath, limit });
   }
 
+  /** Get combined feed of all activity for the dashboard */
+  getFeed(limit = 100): Array<{
+    id: string;
+    type: 'task' | 'intent' | 'evidence' | 'claim';
+    title: string;
+    content: string | null;
+    agent_id: string | null;
+    task_id: string | null;
+    created_at: number;
+    metadata: Record<string, unknown>;
+  }> {
+    this.pruneExpiredClaims();
+    const feed: Array<{
+      id: string;
+      type: 'task' | 'intent' | 'evidence' | 'claim';
+      title: string;
+      content: string | null;
+      agent_id: string | null;
+      task_id: string | null;
+      created_at: number;
+      metadata: Record<string, unknown>;
+    }> = [];
+
+    // Get tasks
+    const tasks = this.db
+      .prepare('SELECT id, title, description, created_at FROM tasks ORDER BY created_at DESC LIMIT ?')
+      .all(limit) as TaskRow[];
+    for (const t of tasks) {
+      feed.push({
+        id: t.id,
+        type: 'task',
+        title: t.title,
+        content: t.description,
+        agent_id: null,
+        task_id: t.id,
+        created_at: t.created_at,
+        metadata: {}
+      });
+    }
+
+    // Get intents
+    const intents = this.db
+      .prepare('SELECT id, task_id, agent_id, files_json, boundaries, acceptance_criteria, created_at FROM intents ORDER BY created_at DESC LIMIT ?')
+      .all(limit) as IntentRow[];
+    for (const i of intents) {
+      const files = JSON.parse(i.files_json) as string[];
+      feed.push({
+        id: i.id,
+        type: 'intent',
+        title: `Intent: ${files.length} file${files.length !== 1 ? 's' : ''}`,
+        content: i.acceptance_criteria,
+        agent_id: i.agent_id,
+        task_id: i.task_id,
+        created_at: i.created_at,
+        metadata: { files, boundaries: i.boundaries }
+      });
+    }
+
+    // Get evidence
+    const evidence = this.db
+      .prepare('SELECT id, task_id, agent_id, command, output, created_at FROM evidence ORDER BY created_at DESC LIMIT ?')
+      .all(limit) as EvidenceRow[];
+    for (const e of evidence) {
+      feed.push({
+        id: e.id,
+        type: 'evidence',
+        title: `Evidence: ${e.command.slice(0, 50)}${e.command.length > 50 ? '...' : ''}`,
+        content: e.command,
+        agent_id: e.agent_id,
+        task_id: e.task_id,
+        created_at: e.created_at,
+        metadata: { output: e.output.slice(0, 500), output_length: e.output.length }
+      });
+    }
+
+    // Get active claims
+    const claims = this.db
+      .prepare('SELECT agent_id, file_path, expires_at, created_at FROM claims ORDER BY created_at DESC')
+      .all() as ClaimRow[];
+    const claimsByAgent = new Map<string, { files: string[]; expires_at: number; created_at: number }>();
+    for (const c of claims) {
+      let entry = claimsByAgent.get(c.agent_id);
+      if (!entry) {
+        entry = { files: [], expires_at: c.expires_at, created_at: c.created_at };
+        claimsByAgent.set(c.agent_id, entry);
+      }
+      entry.files.push(c.file_path);
+      entry.expires_at = Math.max(entry.expires_at, c.expires_at);
+      entry.created_at = Math.min(entry.created_at, c.created_at);
+    }
+    for (const [agentId, data] of claimsByAgent) {
+      feed.push({
+        id: `claim-${agentId}-${data.created_at}`,
+        type: 'claim',
+        title: `Claim: ${data.files.length} file${data.files.length !== 1 ? 's' : ''}`,
+        content: null,
+        agent_id: agentId,
+        task_id: null,
+        created_at: data.created_at,
+        metadata: { files: data.files, expires_at: data.expires_at }
+      });
+    }
+
+    // Sort by created_at descending
+    feed.sort((a, b) => b.created_at - a.created_at);
+    return feed.slice(0, limit);
+  }
+
+  /** Get list of unique agent IDs */
+  getAgents(): string[] {
+    const agents = new Set<string>();
+
+    const intentAgents = this.db
+      .prepare('SELECT DISTINCT agent_id FROM intents')
+      .all() as Array<{ agent_id: string }>;
+    for (const r of intentAgents) agents.add(r.agent_id);
+
+    const evidenceAgents = this.db
+      .prepare('SELECT DISTINCT agent_id FROM evidence')
+      .all() as Array<{ agent_id: string }>;
+    for (const r of evidenceAgents) agents.add(r.agent_id);
+
+    const claimAgents = this.db
+      .prepare('SELECT DISTINCT agent_id FROM claims')
+      .all() as Array<{ agent_id: string }>;
+    for (const r of claimAgents) agents.add(r.agent_id);
+
+    return [...agents].sort();
+  }
+
   private pruneExpiredClaims() {
     const t = now();
     const info = this.db.prepare('DELETE FROM claims WHERE expires_at <= ?').run(t);

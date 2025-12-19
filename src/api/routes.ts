@@ -25,8 +25,30 @@ const ClaimReleaseSchema = z.object({
   files: z.array(z.string().min(1)).optional()
 });
 
+const FeedQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
 export async function registerRoutes(app: FastifyInstance, state: HallState) {
+  // Enable CORS for frontend
+  app.addHook('onRequest', async (request, reply) => {
+    reply.header('Access-Control-Allow-Origin', '*');
+    reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type');
+    if (request.method === 'OPTIONS') {
+      return reply.status(204).send();
+    }
+  });
+
   app.get('/api/status', async () => ok(state.status()));
+
+  app.get('/api/feed', async (req, reply) => {
+    const parsed = FeedQuery.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    return ok(state.getFeed(parsed.data.limit ?? 100));
+  });
+
+  app.get('/api/agents', async () => ok({ agents: state.getAgents() }));
 
   app.post('/api/tasks', async (req, reply) => {
     const parsed = TaskCreateSchema.safeParse(req.body);
