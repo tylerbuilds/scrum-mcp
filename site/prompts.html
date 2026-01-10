@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4HSCLEH37"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-H4HSCLEH37');
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prompts - SCRUM MCP System Prompts for Claude Code & Cursor</title>
+  <meta name="description"
+    content="Copy-paste system prompt instructions to enforce SCRUM MCP usage in Claude Code, Cursor, and other AI coding assistants." />
+  <meta property="og:title" content="SCRUM MCP - System Prompts" />
+  <meta property="og:description"
+    content="Ready-to-use system prompts that enforce multi-agent coordination with SCRUM MCP." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://scrum.tylerbuilds.com/prompts" />
+  <meta name="theme-color" content="#f6f1ea" />
+  <script>
+    document.documentElement.classList.add('js');
+  </script>
+  <link rel="canonical" href="https://scrum.tylerbuilds.com/prompts" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .prompt-section {
+      margin-bottom: 48px;
+    }
+
+    .prompt-section h3 {
+      font-family: "Space Grotesk", sans-serif;
+      font-size: 24px;
+      margin: 0 0 12px;
+    }
+
+    .prompt-section p {
+      color: var(--ink-soft);
+      margin: 0 0 20px;
+    }
+
+    .prompt-block {
+      position: relative;
+      border-radius: 20px;
+      background: #14161b;
+      color: #f7f3ea;
+      padding: 24px;
+      box-shadow: 0 24px 40px rgba(20, 22, 27, 0.25);
+      overflow: hidden;
+    }
+
+    .prompt-block pre {
+      margin: 0;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .prompt-block pre::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .prompt-block pre::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+
+    .prompt-block pre::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 4px;
+    }
+
+    .prompt-label {
+      font-family: "Space Grotesk", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      font-size: 12px;
+      color: rgba(247, 243, 234, 0.65);
+      margin-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .copy-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.12);
+      color: #f7f3ea;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .copy-btn.copied {
+      background: var(--accent-2);
+      color: #fff;
+    }
+
+    .file-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 12px;
+      background: rgba(10, 161, 167, 0.15);
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+
+    .prompt-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .prompt-tab {
+      padding: 12px 20px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      border: 1px solid rgba(20, 22, 27, 0.15);
+      background: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .prompt-tab:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 24px rgba(20, 22, 27, 0.1);
+    }
+
+    .prompt-tab.active {
+      background: linear-gradient(135deg, var(--accent), var(--accent-3));
+      color: #111114;
+      border-color: transparent;
+    }
+
+    .prompt-content {
+      display: none;
+    }
+
+    .prompt-content.active {
+      display: block;
+    }
+
+    .usage-note {
+      padding: 18px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(10, 161, 167, 0.1), rgba(242, 193, 78, 0.12));
+      border: 1px solid rgba(20, 22, 27, 0.08);
+      margin-bottom: 32px;
+    }
+
+    .usage-note h4 {
+      font-family: "Space Grotesk", sans-serif;
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .usage-note p {
+      margin: 0;
+      font-size: 14px;
+      color: var(--ink-soft);
+    }
+
+    .usage-note code {
+      background: rgba(20, 22, 27, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="/" class="brand">
+        <span class="brand-mark">SCRUM</span>
+        <span class="brand-sub">MCP</span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav"
+        aria-label="Open menu">
+        <span class="nav-toggle-line"></span>
+        <span class="nav-toggle-line"></span>
+        <span class="nav-toggle-line"></span>
+      </button>
+      <div class="nav-panel" id="primary-nav">
+        <nav class="nav" aria-label="Primary">
+          <a href="/#start">Start</a>
+          <a href="/#features">Features</a>
+          <a href="/#mcp">MCP</a>
+          <a href="/prompts.html">Prompts</a>
+          <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+        </nav>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+            View repo
+          </a>
+          <a class="btn btn-primary" href="/#start">Get started</a>
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="nav-backdrop" aria-hidden="true"></div>
+  <main>
+    <section class="hero" style="padding-bottom: 48px;">
+      <div class="container">
+        <div class="hero-copy" data-reveal style="max-width: 720px;">
+          <div class="pill">System Prompts</div>
+          <h1>Add these prompts to enforce SCRUM MCP usage.</h1>
+          <p>
+            Copy the appropriate system prompt into your AI coding tool's configuration.
+            These prompts instruct agents to use SCRUM MCP for all file operations,
+            ensuring proper coordination in multi-agent environments.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top: 0;">
+      <div class="container">
+        <div class="usage-note" data-reveal>
+          <h4>Where to add these prompts</h4>
+          <p>
+            <strong>Claude Code:</strong> Add to <code>CLAUDE.md</code> in your project root or <code>~/.claude/CLAUDE.md</code> globally.<br>
+            <strong>Cursor:</strong> Add to <code>.cursorrules</code> in your project root.<br>
+            <strong>Continue:</strong> Add to your <code>config.json</code> system prompt field.
+          </p>
+        </div>
+
+        <div class="prompt-tabs" data-reveal>
+          <button class="prompt-tab active" data-tab="claude">Claude Code</button>
+          <button class="prompt-tab" data-tab="cursor">Cursor</button>
+          <button class="prompt-tab" data-tab="mcp">MCP Config</button>
+        </div>
+
+        <div id="claude" class="prompt-content active" data-reveal>
+          <div class="prompt-section">
+            <span class="file-badge">CLAUDE.md</span>
+            <h3>Claude Code System Prompt</h3>
+            <p>
+              Add this to your project's <code>CLAUDE.md</code> file or <code>~/.claude/CLAUDE.md</code> for global enforcement.
+            </p>
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Full prompt template</span>
+                <button class="copy-btn" data-copy="claude-prompt">Copy</button>
+              </div>
+              <pre id="claude-prompt"># Project Instructions
+
+**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+
+## Session Startup (Do This First!)
+
+When starting a session, AUTOMATICALLY run:
+```
+scrum_status()      # Check server status
+scrum_task_list()   # See pending/active tasks
+scrum_claims_list() # See what files are claimed
+```
+
+This gives you situational awareness of what other agents are working on.
+
+## Code Quality Requirements
+
+Before releasing any file claims, you MUST:
+
+1. **Run tests** - All existing tests must pass
+2. **No regressions** - Don't break what works
+3. **Attach evidence** - Prove your changes work via `scrum_evidence_attach`
+4. **Small, focused changes** - One concern per task, don't scope creep
+5. **Review your own code** - Read it back before committing
+
+Do NOT optimise for speed of completion. Optimise for correctness and maintainability. If unsure, ask the user rather than guessing.
+
+## Multi-Agent Coordination with SCRUM MCP
+
+This project uses **SCRUM (Synchronised Claims Registry for Unified Multi-agents)** for multi-agent coordination. When multiple AI agents work on this codebase simultaneously, they MUST use SCRUM to prevent conflicts and coordinate their work.
+
+### Enforced Workflow
+
+**SCRUM enforces this workflow at the server level. You cannot skip steps - the tools will reject your requests.**
+
+1. **Check for conflicts** before touching any files:
+   ```
+   scrum_overlap_check(files: ["path/to/file.ts", ...])
+   ```
+
+2. **Find or create a task** for your work:
+   ```
+   scrum_task_list()  # Check existing tasks
+   scrum_task_create(title: "Your task", description: "Details")
+   ```
+
+3. **Declare your intent** (REQUIRED before claiming):
+   ```
+   scrum_intent_post(
+     taskId: "task-id",
+     agentId: "your-unique-id",
+     files: ["files/you/will/edit.ts"],
+     boundaries: "What you WON'T touch",
+     acceptanceCriteria: "REQUIRED: How to verify success (min 10 chars)"
+   )
+   ```
+
+4. **Claim files** (will fail without intent):
+   ```
+   scrum_claim(agentId: "your-unique-id", files: ["file.ts"], ttlSeconds: 900)
+   ```
+
+5. **Make your changes** to the claimed files
+
+6. **Log each change** to the changelog (do this AFTER each file edit):
+   ```
+   scrum_changelog_log(
+     agentId: "your-unique-id",
+     filePath: "path/to/edited/file.ts",
+     changeType: "modify",  // or "create" or "delete"
+     summary: "Added error handling to login function",
+     taskId: "task-id"
+   )
+   ```
+
+7. **Attach evidence** (REQUIRED before releasing):
+   ```
+   scrum_evidence_attach(
+     taskId: "task-id",
+     agentId: "your-unique-id",
+     command: "npm test",
+     output: "All tests passed"
+   )
+   ```
+
+8. **Release claims** (will fail without evidence):
+   ```
+   scrum_claim_release(agentId: "your-unique-id", files: ["file.ts"])
+   ```
+
+### Debugging with Changelog
+
+When investigating bugs or issues, search the changelog:
+```
+scrum_changelog_search(
+  filePath: "suspect/file.ts",
+  query: "error handling",
+  since: 1702900000000
+)
+```
+
+### Agent Identity
+
+Each agent instance MUST use a unique `agentId`. Suggested format:
+- `claude-code-{session-hash}`
+- `cursor-{timestamp}`
+- `agent-{random-id}`
+
+### Conflict Resolution
+
+If `scrum_overlap_check` or `scrum_claim` returns conflicts:
+1. Check `scrum_claims_list()` to see who holds the files
+2. Wait for the other agent to release, OR
+3. Coordinate by creating an intent explaining your needs
+4. Work on non-conflicting files in the meantime</pre>
+            </div>
+          </div>
+        </div>
+
+        <div id="cursor" class="prompt-content" data-reveal>
+          <div class="prompt-section">
+            <span class="file-badge">.cursorrules</span>
+            <h3>Cursor System Prompt</h3>
+            <p>
+              Add this to your project's <code>.cursorrules</code> file to enforce SCRUM MCP usage in Cursor.
+            </p>
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Full prompt template</span>
+                <button class="copy-btn" data-copy="cursor-prompt">Copy</button>
+              </div>
+              <pre id="cursor-prompt"># Project Rules
+
+**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+
+## Session Startup (Do First!)
+
+AUTOMATICALLY run at session start:
+- `scrum_status()` - Check server status
+- `scrum_task_list()` - See pending tasks
+- `scrum_claims_list()` - See claimed files
+
+## Code Quality Requirements
+
+Before releasing claims:
+1. Run tests - all must pass
+2. No regressions - don't break existing functionality
+3. Log changes via `scrum_changelog_log`
+4. Attach evidence via `scrum_evidence_attach`
+5. Keep changes small and focused
+6. Review your own code before finishing
+
+Optimise for correctness, not speed. Ask the user if uncertain.
+
+## Multi-Agent Coordination (SCRUM MCP)
+
+This project uses SCRUM for multi-agent coordination. **The workflow is enforced at the server level - you cannot skip steps.**
+
+### Before Any Code Changes
+
+1. **Check conflicts**: `scrum_overlap_check(files: [...])`
+2. **Get/create task**: `scrum_task_list()` or `scrum_task_create(...)`
+3. **Post intent** (REQUIRED before claim):
+   - `scrum_intent_post(taskId, agentId, files, boundaries, acceptanceCriteria)`
+   - `acceptanceCriteria` is mandatory (min 10 chars)
+4. **Claim files** (fails without intent):
+   - `scrum_claim(agentId, files, ttlSeconds: 900)`
+   - Rejects with `NO_INTENT` if step 3 was skipped
+
+### After Each File Edit
+
+5. **Log the change**:
+   - `scrum_changelog_log(agentId, filePath, changeType, summary)`
+   - Creates searchable history for debugging
+
+### Before Releasing Claims
+
+6. **Attach evidence** (REQUIRED before release):
+   - `scrum_evidence_attach(taskId, agentId, command, output)`
+   - No receipts = no release
+7. **Release claims** (fails without evidence):
+   - `scrum_claim_release(agentId, files)`
+   - Rejects with `NO_EVIDENCE` if step 6 was skipped
+
+### Debugging
+
+Search changelog to find when issues were introduced:
+- `scrum_changelog_search(filePath, query, since, until)`
+
+### Agent Identity
+
+Use a unique agentId like `cursor-{timestamp}` or `cursor-{random}`.
+
+### Conflict Resolution
+
+If files are claimed by another agent:
+- Check `scrum_claims_list()` to see current claims
+- Wait or work on unclaimed files
+- Coordinate via intents</pre>
+            </div>
+          </div>
+        </div>
+
+        <div id="mcp" class="prompt-content" data-reveal>
+          <div class="prompt-section">
+            <span class="file-badge">mcp.json</span>
+            <h3>MCP Server Configuration</h3>
+            <p>
+              Add this to your MCP client configuration. Update the paths to match your SCRUM MCP installation.
+            </p>
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>MCP config</span>
+                <button class="copy-btn" data-copy="mcp-config">Copy</button>
+              </div>
+              <pre id="mcp-config">{
+  "mcpServers": {
+    "scrum": {
+      "command": "node",
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"],
+      "env": {
+        "SCRUM_DB_PATH": "/path/to/.scrum/scrum.sqlite"
+      }
+    }
+  }
+}</pre>
+            </div>
+          </div>
+
+          <div class="prompt-section">
+            <h3>Available MCP Tools</h3>
+            <p>Once configured, agents will have access to these SCRUM MCP tools:</p>
+            <div class="prompt-block" style="max-height: none;">
+              <pre style="max-height: none;">## Core Tools
+
+scrum_status()              # Check server status
+scrum_task_list()           # List all tasks
+scrum_task_create()         # Create a new task
+scrum_intent_post()         # Declare intent before claiming
+scrum_overlap_check()       # Check for file conflicts
+scrum_claim()               # Claim files for editing
+scrum_claim_release()       # Release file claims
+scrum_claims_list()         # List all active claims
+
+## Evidence & Changelog
+
+scrum_evidence_attach()     # Attach proof of work
+scrum_changelog_log()       # Log a file change
+scrum_changelog_search()    # Search change history
+
+## Workflow Enforcement
+
+- claim() fails without prior intent_post()
+- claim_release() fails without prior evidence_attach()
+- acceptanceCriteria is required (min 10 chars)
+- All operations are logged and auditable</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section cta">
+      <div class="container cta-card" data-reveal>
+        <div>
+          <p class="eyebrow">Ready to coordinate</p>
+          <h2>Get SCRUM MCP running in minutes.</h2>
+          <p>
+            Clone the repo, build the MCP server, and add your prompt.
+            Your agents will start coordinating immediately.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+            View on GitHub
+          </a>
+          <a class="btn btn-ghost" href="/">
+            Back to home
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <a href="/" class="brand">
+          <span class="brand-mark">SCRUM</span>
+          <span class="brand-sub">MCP</span>
+        </a>
+        <p>Local-first coordination for multi-agent software teams.</p>
+      </div>
+      <div class="footer-links">
+        <a href="/#start">Start</a>
+        <a href="/#features">Features</a>
+        <a href="/prompts.html">Prompts</a>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md" target="_blank" rel="noreferrer">
+          MCP docs
+        </a>
+        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/IDE-SETUP.md" target="_blank" rel="noreferrer">
+          IDE setup
+        </a>
+        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/SECURITY.md" target="_blank" rel="noreferrer">
+          Security
+        </a>
+        <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+          GitHub
+        </a>
+      </div>
+      <div class="footer-meta">
+        <p>MIT license. Copyright Tyler Casey 2026.</p>
+        <p>Built for scrum.tylerbuilds.com</p>
+        <a class="btn btn-ghost btn-x" href="https://x.com/TylerIsBuilding" target="_blank" rel="noreferrer">
+          Follow on X @TylerIsBuilding
+        </a>
+      </div>
+    </div>
+  </footer>
+  <script src="app.js"></script>
+  <script>
+    // Tab switching
+    document.querySelectorAll('.prompt-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.prompt-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.prompt-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Copy to clipboard
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const targetId = btn.dataset.copy;
+        const text = document.getElementById(targetId).textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+    });
+  </script>
+</body>
+
+</html>

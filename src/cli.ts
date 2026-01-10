@@ -1,23 +1,23 @@
 #!/usr/bin/env node
 
-const API = process.env.HALL_API ?? 'http://localhost:4177/api';
+const API = process.env.SCRUM_API ?? 'http://localhost:4177/api';
 
 function usage(): void {
-  console.log(`HALL CLI
+  console.log(`SCRUM CLI
 
 Usage:
-  hall status
-  hall task create --title "..." [--description "..."]
-  hall task list [--limit 50]
-  hall task get --id <taskId>
-  hall intent post --taskId <id> --agentId <id> --files "a,b" [--acceptance "..."] [--boundaries "..."]
-  hall claim --agentId <id> --files "a,b" [--ttl 900]
-  hall claim release --agentId <id> [--files "a,b"]
-  hall claim list
-  hall evidence attach --taskId <id> --agentId <id> --command "..." --output "..."
+  scrum status
+  scrum task create --title "..." [--description "..."]
+  scrum task list [--limit 50]
+  scrum task get --id <taskId>
+  scrum intent post --taskId <id> --agentId <id> --files "a,b" [--acceptance "..."] [--boundaries "..."]
+  scrum claim --agentId <id> --files "a,b" [--ttl 900]
+  scrum claim release --agentId <id> [--files "a,b"]
+  scrum claim list
+  scrum evidence attach --taskId <id> --agentId <id> --command "..." --output "..."
 
 Env:
-  HALL_API=http://localhost:4177/api
+  SCRUM_API=http://localhost:4177/api
 `);
 }
 

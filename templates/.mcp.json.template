@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }

@@ -1,9 +1,9 @@
 import pino from 'pino';
-import type { HallConfig } from './config';
+import type { ScrumConfig } from './config';
 
-export function createLogger(cfg: HallConfig) {
+export function createLogger(cfg: ScrumConfig) {
   return pino({
-    level: cfg.HALL_LOG_LEVEL,
+    level: cfg.SCRUM_LOG_LEVEL,
     redact: {
       paths: ['req.headers.authorization', 'req.headers.cookie'],
       remove: true

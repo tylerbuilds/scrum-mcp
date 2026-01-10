@@ -1,12 +1,12 @@
-# HALL - IDE Setup Guide
+# SCRUM - IDE Setup Guide
 
-This guide explains how to configure HALL for different AI coding assistants.
+This guide explains how to configure SCRUM for different AI coding assistants.
 
 ## Prerequisites
 
-1. Build HALL:
+1. Build SCRUM:
    ```bash
-   cd /path/to/hall-mcp
+   cd /path/to/scrum-mcp
    npm install
    npx tsc -p tsconfig.json
    ```
@@ -21,16 +21,16 @@ This guide explains how to configure HALL for different AI coding assistants.
 
 ### Option 1: CLI (Recommended)
 ```bash
-claude mcp add hall --command "node" --args "/path/to/hall-mcp/dist/mcp.js" --scope user
+claude mcp add scrum --command "node" --args "/path/to/scrum-mcp/dist/mcp.js" --scope user
 ```
 
 ### Option 2: Manual (add to ~/.claude.json)
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
@@ -40,9 +40,9 @@ claude mcp add hall --command "node" --args "/path/to/hall-mcp/dist/mcp.js" --sc
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
@@ -60,9 +60,9 @@ claude mcp add hall --command "node" --args "/path/to/hall-mcp/dist/mcp.js" --sc
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
@@ -85,9 +85,9 @@ mkdir -p ~/.cursor
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
@@ -97,7 +97,7 @@ mkdir -p ~/.cursor
 1. Open AntiGravity
 2. Click Agent session > "..." dropdown > MCP Servers
 3. Select "Manage MCP Servers" > "View raw config"
-4. Add the hall server configuration
+4. Add the scrum server configuration
 
 **Restart AntiGravity after adding.**
 
@@ -111,9 +111,9 @@ mkdir -p ~/.cursor
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
@@ -137,9 +137,9 @@ mkdir -p ~/.config/opencode
 {
   "mcpServers": [
     {
-      "name": "hall",
+      "name": "scrum",
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   ]
 }
@@ -149,14 +149,14 @@ mkdir -p ~/.config/opencode
 
 ## Verifying Installation
 
-After setup, verify HALL is working by asking the agent:
+After setup, verify SCRUM is working by asking the agent:
 ```
-Can you check the HALL status?
+Can you check the SCRUM status?
 ```
 
 Or run the tool directly:
 ```
-hall_status()
+scrum_status()
 ```
 
 Expected response:
@@ -175,20 +175,20 @@ Expected response:
 
 ## Project-Level Configuration
 
-For per-project HALL setup, create `.mcp.json` in your project root:
+For per-project SCRUM setup, create `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/path/to/hall-mcp/dist/mcp.js"]
+      "args": ["/path/to/scrum-mcp/dist/mcp.js"]
     }
   }
 }
 ```
 
-This allows different projects to use different HALL instances.
+This allows different projects to use different SCRUM instances.
 
 ---
 
@@ -199,14 +199,14 @@ For automatic startup on reboot:
 ```bash
 # Create service file
 mkdir -p ~/.config/systemd/user
-cat > ~/.config/systemd/user/hall.service << 'EOF'
+cat > ~/.config/systemd/user/scrum.service << 'EOF'
 [Unit]
-Description=HALL Server
+Description=SCRUM Server
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/node /path/to/hall-mcp/dist/index.js
+ExecStart=/usr/bin/node /path/to/scrum-mcp/dist/index.js
 Restart=on-failure
 RestartSec=5
 Environment=NODE_ENV=production
@@ -217,8 +217,8 @@ EOF
 
 # Enable and start
 systemctl --user daemon-reload
-systemctl --user enable hall
-systemctl --user start hall
+systemctl --user enable scrum
+systemctl --user start scrum
 
 # Enable linger (keeps service running after logout)
 loginctl enable-linger $USER
@@ -228,7 +228,7 @@ loginctl enable-linger $USER
 
 ## Troubleshooting
 
-### "MCP server hall not found"
+### "MCP server scrum not found"
 1. Check the path to `dist/mcp.js` exists
 2. Verify you built the project (`npx tsc`)
 3. Check config file location for your IDE
@@ -239,10 +239,10 @@ loginctl enable-linger $USER
 2. Try using full path to node: `/usr/bin/node`
 
 ### Spaces in path
-If your HALL path contains spaces, the JSON config handles it automatically. No escaping needed in the args array.
+If your SCRUM path contains spaces, the JSON config handles it automatically. No escaping needed in the args array.
 
 ### Check logs
-Run HALL manually to see errors:
+Run SCRUM manually to see errors:
 ```bash
-node "/path/to/hall-mcp/dist/mcp.js"
+node "/path/to/scrum-mcp/dist/mcp.js"
 ```

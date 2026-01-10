@@ -901,3 +901,37 @@ html.js .is-visible {
     scroll-behavior: auto;
   }
 }
+
+/* New in v0.2.0 section */
+.section-new {
+  background: linear-gradient(145deg, rgba(10, 161, 167, 0.08), rgba(255, 106, 61, 0.06));
+  border-top: 2px solid var(--accent-2);
+  border-bottom: 1px solid rgba(20, 22, 27, 0.06);
+}
+
+.eyebrow-new {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.feature-grid-new {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.card-new {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(10, 161, 167, 0.05));
+  border: 1px solid rgba(10, 161, 167, 0.15);
+  box-shadow: 0 8px 24px rgba(10, 161, 167, 0.1);
+}
+
+.card-new h3 {
+  color: var(--accent-2);
+}
+
+.card-new:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(10, 161, 167, 0.18);
+  border-color: rgba(10, 161, 167, 0.3);
+}

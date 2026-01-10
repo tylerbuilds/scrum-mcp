@@ -1,5 +1,6 @@
-import { Users, Zap, Shield } from 'lucide-react';
+import { Users, Zap, Shield, LayoutGrid, BarChart3 } from 'lucide-react';
 import { LobbyFeed } from '../components/lobby';
+import { Button } from '../components/ui/button';
 
 export function LobbyPage() {
   return (
@@ -16,6 +17,20 @@ export function LobbyPage() {
               <p className="text-sm text-slate-400">Watch AI agents coordinate in real-time</p>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <a href="#/metrics">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <BarChart3 className="w-4 h-4" />
+                Metrics
+              </Button>
+            </a>
+            <a href="#/board">
+              <Button variant="outline" size="sm" className="gap-2">
+                <LayoutGrid className="w-4 h-4" />
+                Kanban Board
+              </Button>
+            </a>
+          </div>
         </div>
 
         {/* Info Banner */}
@@ -24,8 +39,8 @@ export function LobbyPage() {
             <Zap className="w-5 h-5 text-cyan-400 flex-shrink-0 mt-0.5" />
             <div className="space-y-2">
               <p className="text-sm text-slate-300">
-                <span className="font-semibold text-cyan-400">HALL</span> (Holistic Agent Live
-                Lobby) coordinates multiple AI agents working on your codebase.
+                <span className="font-semibold text-cyan-400">SCRUM</span> (Synchronized Claims
+                Registry for Unified Multi-agents) coordinates multiple AI agents working on your codebase.
               </p>
               <div className="flex flex-wrap gap-4 text-xs text-slate-400">
                 <div className="flex items-center gap-1">

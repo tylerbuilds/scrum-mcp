@@ -1,19 +1,19 @@
 import { z } from 'zod';
 
 const EnvSchema = z.object({
-  HALL_PORT: z.coerce.number().int().positive().default(4177),
-  HALL_BIND: z.string().default('127.0.0.1'),
-  HALL_REPO_ROOT: z.string().default('.'),
-  HALL_DB_PATH: z.string().default('.hall/hall.sqlite'),
-  HALL_RATE_LIMIT_RPM: z.coerce.number().int().positive().default(300),
-  HALL_LOG_LEVEL: z
+  SCRUM_PORT: z.coerce.number().int().positive().default(4177),
+  SCRUM_BIND: z.string().default('127.0.0.1'),
+  SCRUM_REPO_ROOT: z.string().default('.'),
+  SCRUM_DB_PATH: z.string().default('.scrum/scrum.sqlite'),
+  SCRUM_RATE_LIMIT_RPM: z.coerce.number().int().positive().default(300),
+  SCRUM_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info')
 });
 
-export type HallConfig = z.infer<typeof EnvSchema>;
+export type ScrumConfig = z.infer<typeof EnvSchema>;
 
-export function loadConfig(env: NodeJS.ProcessEnv): HallConfig {
+export function loadConfig(env: NodeJS.ProcessEnv): ScrumConfig {
   // If you use dotenv, load it before calling this function.
   const parsed = EnvSchema.safeParse(env);
   if (!parsed.success) {

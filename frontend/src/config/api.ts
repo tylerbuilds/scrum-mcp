@@ -1,4 +1,4 @@
-// API configuration for HALL backend
+// API configuration for SCRUM backend
 // In development, Vite proxies /api to localhost:4177
 // In production, adjust as needed
 export const API_URL = '';

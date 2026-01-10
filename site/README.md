@@ -1,7 +1,7 @@
-# HALL MCP Marketing Site
+# SCRUM MCP Marketing Site
 
-Standalone static marketing site for HALL MCP, designed to be served at
-`hall-mcp.tylerbuilds.com`.
+Standalone static marketing site for SCRUM MCP, designed to be served at
+`scrum.tylerbuilds.com`.
 
 ## Local preview
 
@@ -15,14 +15,14 @@ Open `http://localhost:8080`.
 
 ## Deploy to VPS (nginx example)
 
-1. Copy `site/` to your web root, for example `/var/www/hall-mcp`.
+1. Copy `site/` to your web root, for example `/var/www/scrum-mcp`.
 2. Add an nginx server block:
 
 ```nginx
 server {
   listen 80;
-  server_name hall-mcp.tylerbuilds.com;
-  root /var/www/hall-mcp;
+  server_name scrum.tylerbuilds.com;
+  root /var/www/scrum-mcp;
   index index.html;
 
   location / {
@@ -32,9 +32,9 @@ server {
 ```
 
 3. Reload nginx: `sudo nginx -s reload`
-4. Verify: `curl -I https://hall-mcp.tylerbuilds.com`
+4. Verify: `curl -I https://scrum.tylerbuilds.com`
 
 ## Links
 
-- GitHub repo: https://github.com/tylerbuilds/hall-mcp
-- Download ZIP: https://github.com/tylerbuilds/hall-mcp/archive/refs/heads/main.zip
+- GitHub repo: https://github.com/tylerbuilds/scrum-mcp
+- Download ZIP: https://github.com/tylerbuilds/scrum-mcp/archive/refs/heads/main.zip

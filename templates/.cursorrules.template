@@ -1,60 +1,60 @@
 # Project Rules
 
-**IMPORTANT: Always use HALL MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
 
 ## Session Startup (Do First!)
 
 AUTOMATICALLY run at session start:
-- `hall_status()` - Check server status
-- `hall_task_list()` - See pending tasks
-- `hall_claims_list()` - See claimed files
+- `scrum_status()` - Check server status
+- `scrum_task_list()` - See pending tasks
+- `scrum_claims_list()` - See claimed files
 
 ## Code Quality Requirements
 
 Before releasing claims:
 1. Run tests - all must pass
 2. No regressions - don't break existing functionality
-3. Log changes via `hall_changelog_log`
-4. Attach evidence via `hall_evidence_attach`
+3. Log changes via `scrum_changelog_log`
+4. Attach evidence via `scrum_evidence_attach`
 5. Keep changes small and focused
 6. Review your own code before finishing
 
-Optimize for correctness, not speed. Ask the user if uncertain.
+Optimise for correctness, not speed. Ask the user if uncertain.
 
-## Multi-Agent Coordination (HALL MCP)
+## Multi-Agent Coordination (SCRUM MCP)
 
-This project uses HALL for multi-agent coordination. **The workflow is enforced at the server level - you cannot skip steps.**
+This project uses SCRUM for multi-agent coordination. **The workflow is enforced at the server level - you cannot skip steps.**
 
 ### Before Any Code Changes
 
-1. **Check conflicts**: `hall_overlap_check(files: [...])`
-2. **Get/create task**: `hall_task_list()` or `hall_task_create(...)`
+1. **Check conflicts**: `scrum_overlap_check(files: [...])`
+2. **Get/create task**: `scrum_task_list()` or `scrum_task_create(...)`
 3. **Post intent** (REQUIRED before claim):
-   - `hall_intent_post(taskId, agentId, files, boundaries, acceptanceCriteria)`
+   - `scrum_intent_post(taskId, agentId, files, boundaries, acceptanceCriteria)`
    - `acceptanceCriteria` is mandatory (min 10 chars)
 4. **Claim files** (fails without intent):
-   - `hall_claim(agentId, files, ttlSeconds: 900)`
+   - `scrum_claim(agentId, files, ttlSeconds: 900)`
    - Rejects with `NO_INTENT` if step 3 was skipped
 
 ### After Each File Edit
 
 5. **Log the change**:
-   - `hall_changelog_log(agentId, filePath, changeType, summary)`
+   - `scrum_changelog_log(agentId, filePath, changeType, summary)`
    - Creates searchable history for debugging
 
 ### Before Releasing Claims
 
 6. **Attach evidence** (REQUIRED before release):
-   - `hall_evidence_attach(taskId, agentId, command, output)`
+   - `scrum_evidence_attach(taskId, agentId, command, output)`
    - No receipts = no release
 7. **Release claims** (fails without evidence):
-   - `hall_claim_release(agentId, files)`
+   - `scrum_claim_release(agentId, files)`
    - Rejects with `NO_EVIDENCE` if step 6 was skipped
 
 ### Debugging
 
 Search changelog to find when issues were introduced:
-- `hall_changelog_search(filePath, query, since, until)`
+- `scrum_changelog_search(filePath, query, since, until)`
 
 ### Agent Identity
 
@@ -63,6 +63,51 @@ Use a unique agentId like `cursor-{timestamp}` or `cursor-{random}`.
 ### Conflict Resolution
 
 If files are claimed by another agent:
-- Check `hall_claims_list()` to see current claims
+- Check `scrum_claims_list()` to see current claims
 - Wait or work on unclaimed files
 - Coordinate via intents
+
+## Kanban Workflow
+
+Tasks have status: `backlog → todo → in_progress → review → done` (+ `cancelled`)
+
+- **View board**: `scrum_board()`
+- **Update task**: `scrum_task_update(taskId, status, priority, assignedAgent, storyPoints, labels)`
+- **Priority levels**: critical, high, medium, low
+
+## Dependencies
+
+- **Add dependency**: `scrum_dependency_add(taskId, dependsOn)`
+- **Check ready**: `scrum_task_ready(taskId)` - Returns true if all dependencies done
+- **List deps**: `scrum_dependencies_get(taskId)`
+- **Remove**: `scrum_dependency_remove(taskId, dependsOn)`
+
+Always check `scrum_task_ready` before starting a task with dependencies.
+
+## Comments & Blockers
+
+**Comments** - Discussion threads on tasks:
+- `scrum_comment_add(taskId, agentId, content)`
+- `scrum_comments_list(taskId)`
+
+**Blockers** - Track impediments:
+- `scrum_blocker_add(taskId, agentId, description, blockerType)`
+- `scrum_blockers_list(taskId)`
+- `scrum_blocker_resolve(blockerId, resolution)`
+
+Blocker types: dependency, technical, external, information
+
+## WIP Limits
+
+Prevent overloading with work-in-progress limits:
+- `scrum_wip_status()` - Current vs limit per column
+- `scrum_wip_limits_get()` / `scrum_wip_limits_set(in_progress, review)`
+
+SCRUM warns if moving a task would exceed limits.
+
+## Metrics
+
+- `scrum_metrics(days)` - Cycle time, lead time, throughput
+- `scrum_velocity(sprints)` - Velocity over sprints
+- `scrum_aging_wip()` - Find stuck tasks
+- `scrum_task_metrics(taskId)` - Individual task metrics

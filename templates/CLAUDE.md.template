@@ -1,14 +1,14 @@
 # Project Instructions
 
-**IMPORTANT: Always use HALL MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
 
 ## Session Startup (Do This First!)
 
 When starting a session, AUTOMATICALLY run:
 ```
-hall_status()      # Check server status
-hall_task_list()   # See pending/active tasks
-hall_claims_list() # See what files are claimed
+scrum_status()      # Check server status
+scrum_task_list()   # See pending/active tasks
+scrum_claims_list() # See what files are claimed
 ```
 
 This gives you situational awareness of what other agents are working on.
@@ -19,34 +19,34 @@ Before releasing any file claims, you MUST:
 
 1. **Run tests** - All existing tests must pass
 2. **No regressions** - Don't break what works
-3. **Attach evidence** - Prove your changes work via `hall_evidence_attach`
+3. **Attach evidence** - Prove your changes work via `scrum_evidence_attach`
 4. **Small, focused changes** - One concern per task, don't scope creep
 5. **Review your own code** - Read it back before committing
 
-Do NOT optimize for speed of completion. Optimize for correctness and maintainability. If unsure, ask the user rather than guessing.
+Do NOT optimise for speed of completion. Optimise for correctness and maintainability. If unsure, ask the user rather than guessing.
 
-## Multi-Agent Coordination with HALL MCP
+## Multi-Agent Coordination with SCRUM MCP
 
-This project uses **HALL (Holistic Agent Live Lobby)** for multi-agent coordination. When multiple AI agents work on this codebase simultaneously, they MUST use HALL to prevent conflicts and coordinate their work.
+This project uses **SCRUM (Synchronised Claims Registry for Unified Multi-agents)** for multi-agent coordination. When multiple AI agents work on this codebase simultaneously, they MUST use SCRUM to prevent conflicts and coordinate their work.
 
 ### Enforced Workflow
 
-**HALL enforces this workflow at the server level. You cannot skip steps - the tools will reject your requests.**
+**SCRUM enforces this workflow at the server level. You cannot skip steps - the tools will reject your requests.**
 
 1. **Check for conflicts** before touching any files:
    ```
-   hall_overlap_check(files: ["path/to/file.ts", ...])
+   scrum_overlap_check(files: ["path/to/file.ts", ...])
    ```
 
 2. **Find or create a task** for your work:
    ```
-   hall_task_list()  # Check existing tasks
-   hall_task_create(title: "Your task", description: "Details")
+   scrum_task_list()  # Check existing tasks
+   scrum_task_create(title: "Your task", description: "Details")
    ```
 
 3. **Declare your intent** (REQUIRED before claiming):
    ```
-   hall_intent_post(
+   scrum_intent_post(
      taskId: "task-id",
      agentId: "your-unique-id",
      files: ["files/you/will/edit.ts"],
@@ -57,14 +57,14 @@ This project uses **HALL (Holistic Agent Live Lobby)** for multi-agent coordinat
 
 4. **Claim files** (will fail without intent):
    ```
-   hall_claim(agentId: "your-unique-id", files: ["file.ts"], ttlSeconds: 900)
+   scrum_claim(agentId: "your-unique-id", files: ["file.ts"], ttlSeconds: 900)
    ```
 
 5. **Make your changes** to the claimed files
 
 6. **Log each change** to the changelog (do this AFTER each file edit):
    ```
-   hall_changelog_log(
+   scrum_changelog_log(
      agentId: "your-unique-id",
      filePath: "path/to/edited/file.ts",
      changeType: "modify",  // or "create" or "delete"
@@ -75,7 +75,7 @@ This project uses **HALL (Holistic Agent Live Lobby)** for multi-agent coordinat
 
 7. **Attach evidence** (REQUIRED before releasing):
    ```
-   hall_evidence_attach(
+   scrum_evidence_attach(
      taskId: "task-id",
      agentId: "your-unique-id",
      command: "npm test",
@@ -85,14 +85,14 @@ This project uses **HALL (Holistic Agent Live Lobby)** for multi-agent coordinat
 
 8. **Release claims** (will fail without evidence):
    ```
-   hall_claim_release(agentId: "your-unique-id", files: ["file.ts"])
+   scrum_claim_release(agentId: "your-unique-id", files: ["file.ts"])
    ```
 
 ### Debugging with Changelog
 
 When investigating bugs or issues, search the changelog:
 ```
-hall_changelog_search(
+scrum_changelog_search(
   filePath: "suspect/file.ts",
   query: "error handling",
   since: 1702900000000
@@ -108,8 +108,148 @@ Each agent instance MUST use a unique `agentId`. Suggested format:
 
 ### Conflict Resolution
 
-If `hall_overlap_check` or `hall_claim` returns conflicts:
-1. Check `hall_claims_list()` to see who holds the files
+If `scrum_overlap_check` or `scrum_claim` returns conflicts:
+1. Check `scrum_claims_list()` to see who holds the files
 2. Wait for the other agent to release, OR
 3. Coordinate by creating an intent explaining your needs
 4. Work on non-conflicting files in the meantime
+
+## Kanban Workflow
+
+Tasks have a full kanban lifecycle with status tracking:
+
+### Task Status Flow
+```
+backlog → todo → in_progress → review → done
+                                     ↘ cancelled
+```
+
+### View the Board
+```
+scrum_board()  # See all tasks by column
+```
+
+### Update Task Status
+```
+scrum_task_update(
+  taskId: "task-id",
+  status: "in_progress",     # Move task to column
+  priority: "high",          # critical, high, medium, low
+  assignedAgent: "your-id",  # Take ownership
+  storyPoints: 3,            # Estimate effort
+  labels: ["frontend", "bug"]
+)
+```
+
+### Priority Levels
+- `critical` - Drop everything, fix now
+- `high` - Do next
+- `medium` - Normal priority (default)
+- `low` - When time permits
+
+## Task Dependencies
+
+Track which tasks must complete before others:
+
+```
+# Add dependency (taskA depends on taskB)
+scrum_dependency_add(taskId: "taskA", dependsOn: "taskB")
+
+# Check if task is ready to start (all dependencies done)
+scrum_task_ready(taskId: "taskA")  # Returns true/false
+
+# List task dependencies
+scrum_dependencies_get(taskId: "taskA")
+
+# Remove dependency
+scrum_dependency_remove(taskId: "taskA", dependsOn: "taskB")
+```
+
+**Note:** Always check `scrum_task_ready` before starting work on a task with dependencies.
+
+## Comments & Collaboration
+
+Add discussion threads to tasks:
+
+```
+# Add a comment
+scrum_comment_add(
+  taskId: "task-id",
+  agentId: "your-id",
+  content: "Found the root cause - it's in the auth middleware"
+)
+
+# List comments on a task
+scrum_comments_list(taskId: "task-id")
+```
+
+Use comments to:
+- Document findings during investigation
+- Ask questions for other agents
+- Leave notes for future context
+
+## Blockers
+
+Track impediments that prevent progress:
+
+```
+# Report a blocker
+scrum_blocker_add(
+  taskId: "task-id",
+  agentId: "your-id",
+  description: "Need access to production logs",
+  blockerType: "dependency"  # dependency, technical, external, information
+)
+
+# List blockers on a task
+scrum_blockers_list(taskId: "task-id")
+
+# Resolve a blocker
+scrum_blocker_resolve(blockerId: "blocker-id", resolution: "Logs provided by ops team")
+```
+
+### Blocker Types
+- `dependency` - Waiting on another task or team
+- `technical` - Technical obstacle (e.g., missing API)
+- `external` - Outside factor (e.g., vendor issue)
+- `information` - Need more information to proceed
+
+## WIP Limits
+
+Prevent overloading by limiting work-in-progress:
+
+```
+# Check current WIP status
+scrum_wip_status()  # Shows current vs limit per column
+
+# View configured limits
+scrum_wip_limits_get()
+
+# Set limits (optional)
+scrum_wip_limits_set(in_progress: 3, review: 2)
+```
+
+**SCRUM will warn you** if moving a task would exceed WIP limits.
+
+## Metrics & Velocity
+
+Track team performance:
+
+```
+# Board metrics (cycle time, lead time, throughput)
+scrum_metrics(days: 30)
+
+# Velocity over sprints
+scrum_velocity(sprints: 5)
+
+# Find aging work-in-progress
+scrum_aging_wip()  # Tasks stuck too long
+
+# Individual task metrics
+scrum_task_metrics(taskId: "task-id")
+```
+
+Use metrics to:
+- Identify bottlenecks (high cycle time in review = need more reviewers)
+- Predict delivery (average lead time)
+- Find stuck work (aging WIP)

@@ -26,7 +26,7 @@ interface FeedItem {
   metadata: Record<string, unknown>;
 }
 
-interface HallStatus {
+interface ScrumStatus {
   tasks: number;
   intents: number;
   claims: number;
@@ -39,7 +39,7 @@ type FilterType = 'all' | 'task' | 'intent' | 'evidence' | 'claim';
 
 export function LobbyFeed() {
   const [feed, setFeed] = useState<FeedItem[]>([]);
-  const [status, setStatus] = useState<HallStatus | null>(null);
+  const [status, setStatus] = useState<ScrumStatus | null>(null);
   const [agents, setAgents] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +51,7 @@ export function LobbyFeed() {
     try {
       const [feedData, statusData, agentsData] = await Promise.all([
         apiFetch<FeedItem[]>('/api/feed?limit=100'),
-        apiFetch<HallStatus>('/api/status'),
+        apiFetch<ScrumStatus>('/api/status'),
         apiFetch<{ agents: string[] }>('/api/agents'),
       ]);
 
@@ -225,7 +225,7 @@ export function LobbyFeed() {
                 <p className="text-sm text-slate-500 mt-1">
                   {filter !== 'all' || selectedAgent
                     ? 'No matching activity found. Try adjusting your filters.'
-                    : 'When AI agents coordinate through HALL, their activity will appear here.'}
+                    : 'When AI agents coordinate through SCRUM, their activity will appear here.'}
                 </p>
               </div>
             </div>
@@ -236,7 +236,7 @@ export function LobbyFeed() {
               key={item.id}
               item={item}
               onTaskClick={(taskId) => {
-                console.log('Task clicked:', taskId);
+                window.location.hash = `#/task/${taskId}`;
               }}
             />
           ))

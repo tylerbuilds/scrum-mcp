@@ -1,9 +1,9 @@
-# HALL agent rules
+# SCRUM agent rules
 
-HALL exists to turn a pile of clever models into a dependable dev team.
+SCRUM exists to turn a pile of clever models into a dependable dev team.
 This file is the law of the room.
 
-## The HALL contract
+## The SCRUM contract
 
 ### 1) Evidence is the currency
 If you claim something works, you must attach receipts:
@@ -44,7 +44,7 @@ At least one agent must take a sceptical position on each non-trivial change:
 - "What will ops hate at 3AM?"
 - "What is the simplest alternative?"
 
-If nobody dissents, HALL assumes groupthink and blocks completion.
+If nobody dissents, SCRUM assumes groupthink and blocks completion.
 
 ### 6) No silent failure
 Forbidden patterns:
@@ -67,9 +67,9 @@ Agents must explicitly check:
 - Integration reality (unit tests passing is not enough)
 - Missing ops truth (runbooks and OPERATIONS.md not updated)
 
-## The spark: HALL Lighthouse
+## The spark: SCRUM Lighthouse
 
-HALL is special when it behaves like a lighthouse, not a megaphone.
+SCRUM is special when it behaves like a lighthouse, not a megaphone.
 
 Every meaningful change must leave behind a visible beam:
 

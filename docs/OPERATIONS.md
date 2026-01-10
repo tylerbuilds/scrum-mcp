@@ -11,8 +11,8 @@ This is the 3AM sheet.
 ## First checks
 
 1. `npm run dev` is running without errors
-2. Port free: `lsof -i :4177` (or change `HALL_PORT`)
-3. DB path exists and is writable (`.hall/hall.sqlite`)
+2. Port free: `lsof -i :4177` (or change `SCRUM_PORT`)
+3. DB path exists and is writable (`.scrum/scrum.sqlite`)
 
 ## Restart
 
@@ -30,9 +30,9 @@ Logs are structured. If something fails, capture:
 
 ## Rollback
 
-HALL stores state only. To reset:
+SCRUM stores state only. To reset:
 
-- Stop HALL
-- Delete `.hall/hall.sqlite`
-- Start HALL
+- Stop SCRUM
+- Delete `.scrum/scrum.sqlite`
+- Start SCRUM
 

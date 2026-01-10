@@ -9,11 +9,11 @@ dist/
 .env.local
 
 # Database
-.hall/
+.scrum/
 *.sqlite
 *.sqlite-wal
 *.sqlite-shm
-hall.db
+scrum.db
 
 # IDE
 .idea/

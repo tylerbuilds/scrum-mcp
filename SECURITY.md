@@ -1,6 +1,6 @@
 # Security
 
-HALL is designed to be local-first and boringly safe.
+SCRUM is designed to be local-first and boringly safe.
 
 ## Threat model (v0.1)
 
@@ -26,14 +26,14 @@ Protect:
 
 ## Operator checklist
 
-- Keep HALL behind localhost unless you add auth
+- Keep SCRUM behind localhost unless you add auth
 - Do not store API keys in the repo
 - Consider running in a dedicated user account
-- If you expose HALL, add:
+- If you expose SCRUM, add:
   - Authentication
   - CSRF protections for browser clients
   - mTLS or a reverse proxy with access controls
 
 ## Reporting
 
-If you open-source HALL later, add a SECURITY policy (CVE process, response time).
+If you open-source SCRUM later, add a SECURITY policy (CVE process, response time).

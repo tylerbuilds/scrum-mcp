@@ -1,15 +1,18 @@
-# HALL Server (MCP)
+# SCRUM Server (MCP)
 
-This guide explains how to use HALL with AI coding agents via the Model Context Protocol (MCP).
+This guide explains how to use SCRUM with AI coding agents via the Model Context Protocol (MCP).
 
 ## What is MCP?
 
-MCP is a standard protocol that lets AI tools call external services. HALL exposes its coordination features as MCP tools, so agents like Claude Code, Cursor, or any MCP-compatible client can:
+MCP is a standard protocol that lets AI tools call external services. SCRUM exposes its coordination features as MCP tools, so agents like Claude Code, Cursor, or any MCP-compatible client can:
 
 - Create and track tasks
 - Declare intent before editing files
 - Claim files to prevent conflicts
 - Attach evidence (command output) to prove work
+- Manage tasks through kanban workflow stages
+- Track blockers, dependencies, and WIP limits
+- Monitor team velocity and cycle time metrics
 
 ## Quick Start
 
@@ -32,11 +35,11 @@ Add to `~/.claude.json` (or use `claude mcp add`):
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["/absolute/path/to/hall/dist/mcp.js"],
+      "args": ["/absolute/path/to/scrum/dist/mcp.js"],
       "env": {
-        "HALL_DB_PATH": "/absolute/path/to/your/repo/.hall/hall.sqlite"
+        "SCRUM_DB_PATH": "/absolute/path/to/your/repo/.scrum/scrum.sqlite"
       }
     }
   }
@@ -46,7 +49,7 @@ Add to `~/.claude.json` (or use `claude mcp add`):
 Or via CLI:
 
 ```bash
-claude mcp add hall node /path/to/hall/dist/mcp.js
+claude mcp add scrum node /path/to/scrum/dist/mcp.js
 ```
 
 ### Cursor
@@ -56,9 +59,9 @@ Add to `.cursor/mcp.json` in your project:
 ```json
 {
   "mcpServers": {
-    "hall": {
+    "scrum": {
       "command": "node",
-      "args": ["./path/to/hall/dist/mcp.js"]
+      "args": ["./path/to/scrum/dist/mcp.js"]
     }
   }
 }
@@ -72,9 +75,9 @@ Add to your Continue config:
 {
   "mcpServers": [
     {
-      "name": "hall",
+      "name": "scrum",
       "command": "node",
-      "args": ["/path/to/hall/dist/mcp.js"]
+      "args": ["/path/to/scrum/dist/mcp.js"]
     }
   ]
 }
@@ -85,22 +88,26 @@ Add to your Continue config:
 Any MCP client can connect via:
 
 ```bash
-node /path/to/hall/dist/mcp.js
+node /path/to/scrum/dist/mcp.js
 ```
 
 Communication is JSON-RPC 2.0 over stdio.
 
 ## Available Tools
 
-### `hall_status`
+### Core Tools
 
-Get current HALL server status.
+These are the foundational SCRUM coordination tools.
+
+#### `scrum_status`
+
+Get current SCRUM server status.
 
 ```
 Returns: { tasks, intents, claims, evidence, now }
 ```
 
-### `hall_task_create`
+#### `scrum_task_create`
 
 Create a new task (top-level work item).
 
@@ -112,7 +119,7 @@ Inputs:
 Returns: { id, title, description, createdAt }
 ```
 
-### `hall_task_get`
+#### `scrum_task_get`
 
 Get a task with all its intents and evidence.
 
@@ -123,7 +130,7 @@ Inputs:
 Returns: { task, intents[], evidence[] }
 ```
 
-### `hall_task_list`
+#### `scrum_task_list`
 
 List recent tasks.
 
@@ -134,9 +141,9 @@ Inputs:
 Returns: Task[]
 ```
 
-### `hall_intent_post`
+#### `scrum_intent_post`
 
-Declare what you plan to change BEFORE editing. Required by HALL contract.
+Declare what you plan to change BEFORE editing. Required by SCRUM contract.
 
 ```
 Inputs:
@@ -149,7 +156,7 @@ Inputs:
 Returns: { id, taskId, agentId, files, boundaries, acceptanceCriteria, createdAt }
 ```
 
-### `hall_claim`
+#### `scrum_claim`
 
 Claim exclusive access to files. Required before editing.
 
@@ -164,7 +171,7 @@ Returns:
   - If conflicts: { status: "conflict", claim, conflictsWith: ["other-agent"], message }
 ```
 
-### `hall_claim_release`
+#### `scrum_claim_release`
 
 Release your claims when done editing.
 
@@ -176,7 +183,7 @@ Inputs:
 Returns: { status: "ok", released }
 ```
 
-### `hall_claims_list`
+#### `scrum_claims_list`
 
 List all active claims across all agents.
 
@@ -184,9 +191,9 @@ List all active claims across all agents.
 Returns: Claim[] with { agentId, files[], expiresAt, createdAt }
 ```
 
-### `hall_evidence_attach`
+#### `scrum_evidence_attach`
 
-Attach proof that your work is complete. Required by HALL contract.
+Attach proof that your work is complete. Required by SCRUM contract.
 
 ```
 Inputs:
@@ -198,7 +205,7 @@ Inputs:
 Returns: { id, taskId, agentId, command, output, createdAt }
 ```
 
-### `hall_overlap_check`
+#### `scrum_overlap_check`
 
 Check if files are claimed by other agents before starting work.
 
@@ -209,31 +216,361 @@ Inputs:
 Returns: { hasOverlaps, overlaps[], checkedFiles }
 ```
 
+### Kanban Workflow
+
+Tools for managing task status and visualizing work on the board.
+
+#### `scrum_task_update`
+
+Update task status, priority, assignment, due date, labels, or story points.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - status (optional): New status ("backlog", "todo", "in_progress", "review", "done")
+  - priority (optional): Priority level ("low", "medium", "high", "critical")
+  - assignee (optional): Agent or person assigned
+  - dueDate (optional): Due date (ISO 8601 string)
+  - labels (optional): Array of label strings
+  - storyPoints (optional): Story point estimate (number)
+
+Returns: { task } with updated fields
+```
+
+#### `scrum_board`
+
+Get kanban board view with tasks grouped by status.
+
+```
+Inputs:
+  - includeMetrics (optional): Include column metrics (default: false)
+
+Returns: {
+  columns: {
+    backlog: Task[],
+    todo: Task[],
+    in_progress: Task[],
+    review: Task[],
+    done: Task[]
+  },
+  metrics?: { columnCounts, wipStatus }
+}
+```
+
+### Comments and Blockers
+
+Tools for collaboration and issue tracking on tasks.
+
+#### `scrum_comment_add`
+
+Add a comment to a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - agentId (required): Your identifier
+  - content (required): Comment text (max 2000 chars)
+
+Returns: { id, taskId, agentId, content, createdAt }
+```
+
+#### `scrum_comments_list`
+
+List comments on a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - limit (optional): Max results (1-100, default 50)
+
+Returns: Comment[]
+```
+
+#### `scrum_blocker_add`
+
+Add a blocker to a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - agentId (required): Your identifier
+  - description (required): What is blocking progress
+  - blockerType (optional): Type ("technical", "dependency", "external", "resource")
+
+Returns: { id, taskId, agentId, description, blockerType, resolved, createdAt }
+```
+
+#### `scrum_blocker_resolve`
+
+Resolve a blocker on a task.
+
+```
+Inputs:
+  - blockerId (required): Blocker ID
+  - agentId (required): Your identifier
+  - resolution (optional): How it was resolved
+
+Returns: { blocker } with resolved: true and resolvedAt timestamp
+```
+
+#### `scrum_blockers_list`
+
+List blockers for a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - includeResolved (optional): Include resolved blockers (default: false)
+
+Returns: Blocker[]
+```
+
+### Dependencies
+
+Tools for managing task dependencies and execution order.
+
+#### `scrum_dependency_add`
+
+Add a dependency between tasks (task A depends on task B).
+
+```
+Inputs:
+  - taskId (required): Task that has the dependency
+  - dependsOnTaskId (required): Task that must complete first
+  - dependencyType (optional): Type ("blocks", "required_by", "related")
+
+Returns: { id, taskId, dependsOnTaskId, dependencyType, createdAt }
+```
+
+#### `scrum_dependency_remove`
+
+Remove a dependency between tasks.
+
+```
+Inputs:
+  - taskId (required): Task with the dependency
+  - dependsOnTaskId (required): Task to remove as dependency
+
+Returns: { status: "ok", removed: true }
+```
+
+#### `scrum_dependencies_get`
+
+Get all dependencies for a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - direction (optional): "upstream" (what this depends on), "downstream" (what depends on this), or "both" (default)
+
+Returns: {
+  upstream: Dependency[],
+  downstream: Dependency[]
+}
+```
+
+#### `scrum_task_ready`
+
+Check if a task is ready to start (all dependencies completed).
+
+```
+Inputs:
+  - taskId (required): Task ID
+
+Returns: {
+  ready: boolean,
+  blockedBy: Task[],
+  message: string
+}
+```
+
+### WIP Limits
+
+Tools for managing work-in-progress limits to prevent overload.
+
+#### `scrum_wip_limits_get`
+
+Get WIP limits for all columns.
+
+```
+Returns: {
+  backlog: number | null,
+  todo: number | null,
+  in_progress: number | null,
+  review: number | null,
+  done: number | null
+}
+```
+
+#### `scrum_wip_limits_set`
+
+Set WIP limit for a column.
+
+```
+Inputs:
+  - column (required): Column name ("backlog", "todo", "in_progress", "review", "done")
+  - limit (required): Max tasks allowed (number, or null to remove limit)
+
+Returns: { column, limit, previous }
+```
+
+#### `scrum_wip_status`
+
+Get current WIP status showing limits vs actual counts.
+
+```
+Returns: {
+  columns: {
+    [column]: {
+      limit: number | null,
+      current: number,
+      available: number | null,
+      overLimit: boolean
+    }
+  },
+  totalOverLimit: number
+}
+```
+
+### Metrics
+
+Tools for tracking team performance and identifying bottlenecks.
+
+#### `scrum_metrics`
+
+Get board-level metrics including cycle time, lead time, and throughput.
+
+```
+Inputs:
+  - days (optional): Number of days to analyze (default: 30)
+
+Returns: {
+  cycleTime: { average, median, p90 },
+  leadTime: { average, median, p90 },
+  throughput: { daily, weekly },
+  completedTasks: number,
+  period: { start, end }
+}
+```
+
+#### `scrum_velocity`
+
+Get velocity over time periods (story points completed).
+
+```
+Inputs:
+  - periods (optional): Number of periods to return (default: 4)
+  - periodType (optional): "week" or "sprint" (default: "week")
+
+Returns: {
+  periods: [{
+    start, end,
+    completedPoints: number,
+    completedTasks: number
+  }],
+  averageVelocity: number
+}
+```
+
+#### `scrum_aging_wip`
+
+Get tasks that have been in progress for too long.
+
+```
+Inputs:
+  - thresholdDays (optional): Days before considered aging (default: 3)
+
+Returns: {
+  agingTasks: [{
+    task: Task,
+    daysInProgress: number,
+    status: string
+  }],
+  totalAging: number
+}
+```
+
+#### `scrum_task_metrics`
+
+Get metrics for a single task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+
+Returns: {
+  task: Task,
+  cycleTime: number | null,
+  leadTime: number | null,
+  timeInStatus: { [status]: number },
+  blockerCount: number,
+  commentCount: number,
+  dependencyCount: number
+}
+```
+
+### Changelog Extensions
+
+The changelog tools now support task-related event types.
+
+#### `scrum_changelog_log`
+
+Log a change event. Now supports task workflow events.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - agentId (required): Your identifier
+  - eventType (required): Event type including:
+    - Core: "file_edit", "test_run", "build", "deploy"
+    - Task: "status_change", "assignment", "blocker_added", "blocker_resolved",
+            "dependency_added", "comment_added", "priority_change"
+  - details (required): Event details (object)
+  - files (optional): Related file paths
+
+Returns: { id, taskId, agentId, eventType, details, createdAt }
+```
+
+#### `scrum_changelog_search`
+
+Search changelog entries. Can filter by task event types.
+
+```
+Inputs:
+  - taskId (optional): Filter by task
+  - agentId (optional): Filter by agent
+  - eventType (optional): Filter by event type
+  - since (optional): ISO 8601 timestamp for start of range
+  - limit (optional): Max results (default: 100)
+
+Returns: ChangelogEntry[]
+```
+
 ## Resources
 
 The MCP server also exposes these resources:
 
-- `hall://contract` - The HALL agent rules (markdown)
-- `hall://status` - Current server status (JSON)
+- `scrum://contract` - The SCRUM agent rules (markdown)
+- `scrum://status` - Current server status (JSON)
 
 ## Typical Workflow
 
-Here's how an agent should use HALL:
+Here's how an agent should use SCRUM for basic file coordination:
 
 ```
 1. Check status
-   → hall_status
+   -> scrum_status
 
 2. Create or find task
-   → hall_task_create { title: "Fix auth bug" }
-   → Returns: { id: "abc123", ... }
+   -> scrum_task_create { title: "Fix auth bug" }
+   -> Returns: { id: "abc123", ... }
 
 3. Check for conflicts
-   → hall_overlap_check { files: ["src/auth.ts"] }
-   → Returns: { hasOverlaps: false, ... }
+   -> scrum_overlap_check { files: ["src/auth.ts"] }
+   -> Returns: { hasOverlaps: false, ... }
 
 4. Declare intent
-   → hall_intent_post {
+   -> scrum_intent_post {
        taskId: "abc123",
        agentId: "claude-code",
        files: ["src/auth.ts"],
@@ -242,7 +579,7 @@ Here's how an agent should use HALL:
      }
 
 5. Claim files
-   → hall_claim {
+   -> scrum_claim {
        agentId: "claude-code",
        files: ["src/auth.ts"],
        ttlSeconds: 900
@@ -251,15 +588,118 @@ Here's how an agent should use HALL:
 6. Make your changes (edit the files)
 
 7. Attach evidence
-   → hall_evidence_attach {
+   -> scrum_evidence_attach {
        taskId: "abc123",
        agentId: "claude-code",
        command: "npm test -- --grep auth",
-       output: "✓ 12 tests passed"
+       output: "12 tests passed"
      }
 
 8. Release claims
-   → hall_claim_release { agentId: "claude-code" }
+   -> scrum_claim_release { agentId: "claude-code" }
+```
+
+## Kanban Workflow
+
+For teams using the full kanban workflow:
+
+```
+1. View the board
+   -> scrum_board { includeMetrics: true }
+
+2. Check WIP limits before starting
+   -> scrum_wip_status
+   -> Ensure in_progress column has capacity
+
+3. Pick a task from todo
+   -> scrum_task_ready { taskId: "abc123" }
+   -> Verify dependencies are satisfied
+
+4. Move task to in_progress
+   -> scrum_task_update {
+       taskId: "abc123",
+       status: "in_progress",
+       assignee: "claude-code"
+     }
+
+5. Log the status change
+   -> scrum_changelog_log {
+       taskId: "abc123",
+       agentId: "claude-code",
+       eventType: "status_change",
+       details: { from: "todo", to: "in_progress" }
+     }
+
+6. If blocked, record it
+   -> scrum_blocker_add {
+       taskId: "abc123",
+       agentId: "claude-code",
+       description: "Waiting for API spec",
+       blockerType: "dependency"
+     }
+
+7. Add comments for context
+   -> scrum_comment_add {
+       taskId: "abc123",
+       agentId: "claude-code",
+       content: "Started investigation, auth module needs refactor first"
+     }
+
+8. When blocker resolved
+   -> scrum_blocker_resolve {
+       blockerId: "blocker-456",
+       agentId: "claude-code",
+       resolution: "API spec received and reviewed"
+     }
+
+9. Complete work and move to review
+   -> scrum_task_update {
+       taskId: "abc123",
+       status: "review"
+     }
+
+10. After review, move to done
+    -> scrum_task_update {
+        taskId: "abc123",
+        status: "done"
+      }
+
+11. Check team metrics
+    -> scrum_metrics { days: 7 }
+    -> scrum_velocity { periods: 4, periodType: "week" }
+```
+
+## Multi-Agent Coordination
+
+When multiple agents work on related tasks:
+
+```
+1. Set up dependencies
+   -> scrum_dependency_add {
+       taskId: "frontend-task",
+       dependsOnTaskId: "api-task",
+       dependencyType: "blocks"
+     }
+
+2. Check what you're waiting on
+   -> scrum_dependencies_get {
+       taskId: "frontend-task",
+       direction: "upstream"
+     }
+
+3. Find tasks ready to work on
+   -> scrum_board
+   -> For each candidate: scrum_task_ready { taskId }
+
+4. Monitor aging work
+   -> scrum_aging_wip { thresholdDays: 2 }
+
+5. Coordinate via comments
+   -> scrum_comment_add {
+       taskId: "shared-task",
+       agentId: "agent-1",
+       content: "@agent-2 I've finished the model layer, you can start the controller"
+     }
 ```
 
 ## Environment Variables
@@ -268,14 +708,14 @@ The MCP server respects these environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HALL_DB_PATH` | `.hall/hall.sqlite` | SQLite database path |
-| `HALL_REPO_ROOT` | `.` | Repository root for file watching |
+| `SCRUM_DB_PATH` | `.scrum/scrum.sqlite` | SQLite database path |
+| `SCRUM_REPO_ROOT` | `.` | Repository root for file watching |
 
 ## Troubleshooting
 
 ### "Database is locked"
 
-Only one process can write to SQLite at a time. Make sure you're not running multiple HALL servers against the same database.
+Only one process can write to SQLite at a time. Make sure you're not running multiple SCRUM servers against the same database.
 
 ### Claims not working
 
@@ -287,16 +727,32 @@ Claims are per-agent, identified by `agentId`. Make sure each agent uses a consi
 2. Verify the build: `npm run build`
 3. Test manually: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | npm run mcp`
 
+### WIP limit exceeded
+
+If `scrum_wip_status` shows a column over limit, you have options:
+1. Complete or move existing tasks before adding new ones
+2. Increase the limit with `scrum_wip_limits_set`
+3. The system warns but doesn't block - use team discipline
+
+### Dependencies blocking progress
+
+Use `scrum_task_ready` to check if a task can start. If blocked:
+1. Check `blockedBy` array in the response
+2. Prioritize completing blocking tasks
+3. Or remove the dependency if no longer needed
+
 ## Multi-Agent Setup
 
 When running multiple agents:
 
 1. Each agent needs a unique `agentId` (e.g., "claude-code-1", "cursor-agent")
-2. All agents should point to the same `HALL_DB_PATH`
-3. Use `hall_overlap_check` before claiming to avoid conflicts
+2. All agents should point to the same `SCRUM_DB_PATH`
+3. Use `scrum_overlap_check` before claiming to avoid conflicts
 4. Keep claim TTLs short (5-15 minutes) to avoid blocking others
+5. Use dependencies to coordinate work order between agents
+6. Add comments to communicate status and handoffs
 
-## The HALL Contract
+## The SCRUM Contract
 
 See [agents.md](agents.md) for the full contract, but the key rules are:
 
@@ -305,3 +761,6 @@ See [agents.md](agents.md) for the full contract, but the key rules are:
 3. **Claims prevent collisions** - Lock files before editing
 4. **No silent failure** - Log errors, don't swallow them
 5. **Small changes win** - Split large changes
+6. **Respect WIP limits** - Don't overload the system
+7. **Dependencies matter** - Check readiness before starting
+8. **Document blockers** - Make impediments visible

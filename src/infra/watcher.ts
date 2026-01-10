@@ -1,16 +1,16 @@
 import chokidar, { type FSWatcher } from 'chokidar';
 import path from 'node:path';
 import type { Logger } from 'pino';
-import type { HallEvent } from '../core/types.js';
+import type { ScrumEvent } from '../core/types.js';
 
-export type EventSink = (evt: HallEvent) => void;
+export type EventSink = (evt: ScrumEvent) => void;
 
 export function startRepoWatcher(repoRoot: string, log: Logger, sink: EventSink): FSWatcher {
   const absRoot = path.resolve(repoRoot);
 
   const watcher = chokidar.watch(absRoot, {
     ignoreInitial: true,
-    ignored: (p) => p.includes('/node_modules/') || p.includes('/.git/') || p.includes('/.hall/'),
+    ignored: (p) => p.includes('/node_modules/') || p.includes('/.git/') || p.includes('/.scrum/'),
     awaitWriteFinish: { stabilityThreshold: 150, pollInterval: 50 }
   });
 
