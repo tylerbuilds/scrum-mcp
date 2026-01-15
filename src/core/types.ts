@@ -176,3 +176,138 @@ export interface AgingWipTask {
   daysInProgress: number;
   assignedAgent?: string;
 }
+
+// ==================== AGENT REGISTRY ====================
+
+export type AgentStatus = 'active' | 'idle' | 'offline';
+
+export interface Agent {
+  agentId: string;
+  capabilities: string[];
+  metadata?: Record<string, unknown>;
+  lastHeartbeat: number;
+  registeredAt: number;
+  status: AgentStatus;
+}
+
+// ==================== DEAD WORK DETECTION ====================
+
+export type DeadWorkReason = 'no_claims' | 'no_activity' | 'stale';
+
+export interface DeadWork {
+  taskId: TaskId;
+  title: string;
+  status: TaskStatus;
+  assignedAgent?: string;
+  startedAt?: number;
+  daysStale: number;
+  lastActivityAt: number;
+  hasActiveClaims: boolean;
+  hasRecentEvidence: boolean;
+  reason: DeadWorkReason;
+}
+
+// ==================== APPROVAL GATES ====================
+
+export type GateId = string;
+export type GateType = 'lint' | 'test' | 'build' | 'review' | 'custom';
+
+export interface Gate {
+  id: GateId;
+  taskId: TaskId;
+  gateType: GateType;
+  command: string;
+  triggerStatus: TaskStatus;
+  required: boolean;
+  createdAt: number;
+}
+
+export interface GateRun {
+  id: string;
+  gateId: GateId;
+  taskId: TaskId;
+  agentId: string;
+  passed: boolean;
+  output?: string;
+  durationMs?: number;
+  createdAt: number;
+}
+
+export type GateResultStatus = 'pending' | 'passed' | 'failed' | 'not_run';
+
+export interface GateResult {
+  gate: Gate;
+  lastRun?: GateRun;
+  status: GateResultStatus;
+}
+
+export interface GateStatus {
+  allPassed: boolean;
+  gates: GateResult[];
+  blockedBy: Gate[];
+}
+
+// ==================== TASK TEMPLATES ====================
+
+export type TemplateId = string;
+
+export interface GateConfig {
+  gateType: GateType;
+  command: string;
+  triggerStatus: TaskStatus;
+}
+
+export interface TaskTemplate {
+  id: TemplateId;
+  name: string;
+  titlePattern: string;
+  descriptionTemplate?: string;
+  defaultStatus: TaskStatus;
+  defaultPriority: TaskPriority;
+  defaultLabels: string[];
+  defaultStoryPoints?: number;
+  gates?: GateConfig[];
+  checklist?: string[];
+  createdAt: number;
+  updatedAt?: number;
+}
+
+// ==================== WEBHOOKS ====================
+
+export type WebhookId = string;
+
+export type WebhookEventType =
+  | 'task.created'
+  | 'task.updated'
+  | 'task.completed'
+  | 'intent.posted'
+  | 'claim.created'
+  | 'claim.conflict'
+  | 'claim.released'
+  | 'evidence.attached'
+  | 'gate.passed'
+  | 'gate.failed';
+
+export interface Webhook {
+  id: WebhookId;
+  name: string;
+  url: string;
+  events: WebhookEventType[];
+  headers?: Record<string, string>;
+  secret?: string;
+  enabled: boolean;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhookId: WebhookId;
+  eventType: WebhookEventType;
+  payload: Record<string, unknown>;
+  statusCode?: number;
+  response?: string;
+  durationMs?: number;
+  success: boolean;
+  createdAt: number;
+}

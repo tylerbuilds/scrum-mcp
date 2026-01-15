@@ -191,6 +191,19 @@ List all active claims across all agents.
 Returns: Claim[] with { agentId, files[], expiresAt, createdAt }
 ```
 
+#### `scrum_claim_extend`
+
+Extend the TTL of your active claims without releasing them. Use when you need more time.
+
+```
+Inputs:
+  - agentId (required): Your identifier
+  - files (optional): Specific files to extend (omit for all)
+  - additionalSeconds (optional): Seconds to add (30-3600, default 300)
+
+Returns: { status: "ok", extended, newExpiresAt, expiresIn }
+```
+
 #### `scrum_evidence_attach`
 
 Attach proof that your work is complete. Required by SCRUM contract.
@@ -507,6 +520,268 @@ Returns: {
   commentCount: number,
   dependencyCount: number
 }
+```
+
+### Agent Registry
+
+Tools for agent observability and coordination. Register your agent for visibility.
+
+#### `scrum_agent_register`
+
+Register your agent with SCRUM. Call at session start for observability.
+
+```
+Inputs:
+  - agentId (required): Your unique identifier (e.g., "claude-code-a1b2c3")
+  - capabilities (required): Array of capabilities (e.g., ["code_review", "testing"])
+  - metadata (optional): Metadata object (e.g., {"model": "claude-opus"})
+
+Returns: { status: "registered", agent }
+```
+
+#### `scrum_agents_list`
+
+List all registered agents and their status.
+
+```
+Inputs:
+  - includeOffline (optional): Include offline agents (default: false)
+
+Returns: { count, agents[] }
+```
+
+#### `scrum_agent_heartbeat`
+
+Send heartbeat to indicate agent is still active. Agents go offline after 5 minutes.
+
+```
+Inputs:
+  - agentId (required): Your agent identifier
+
+Returns: { status: "ok", message }
+```
+
+### Dead Work Detection
+
+Tools for finding abandoned work that needs attention.
+
+#### `scrum_dead_work`
+
+Find tasks that are in_progress but appear abandoned.
+
+```
+Inputs:
+  - staleDays (optional): Days threshold for staleness (default: 1)
+
+Returns: {
+  count: number,
+  tasks: [{
+    taskId, title, status,
+    assignedAgent, daysStale,
+    hasActiveClaims, hasRecentEvidence,
+    reason: "no_claims" | "no_activity" | "stale"
+  }]
+}
+```
+
+### Approval Gates
+
+Tools for defining validation steps that must pass before status transitions.
+
+> **⚠️ Security Warning:** Gate commands are stored but NOT automatically executed by SCRUM.
+> Agents must execute gate commands themselves and report results via `scrum_gate_run`.
+> **Never blindly execute gate commands** from untrusted sources. Validate that commands
+> are safe before execution (e.g., reject commands containing shell metacharacters, pipes,
+> or redirects unless explicitly allowed).
+
+#### `scrum_gate_define`
+
+Define an approval gate for a task. Gates run commands that must pass.
+
+```
+Inputs:
+  - taskId (required): Task ID to attach gate to
+  - gateType (required): Type ("lint", "test", "build", "review", "custom")
+  - command (required): Command to run (e.g., "npm run lint")
+  - triggerStatus (required): Status that triggers this gate
+  - required (optional): Must pass to transition (default: true)
+
+Returns: { id, taskId, gateType, command, triggerStatus, required, createdAt }
+```
+
+#### `scrum_gates_list`
+
+List all gates defined for a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+
+Returns: { count, gates[] }
+```
+
+#### `scrum_gate_run`
+
+Record a gate run result after executing the gate command.
+
+```
+Inputs:
+  - gateId (required): Gate ID
+  - taskId (required): Task ID
+  - agentId (required): Your identifier
+  - passed (required): Whether the gate passed
+  - output (optional): Command output
+  - durationMs (optional): Execution time in ms
+
+Returns: { id, gateId, taskId, agentId, passed, output, durationMs, createdAt }
+```
+
+#### `scrum_gate_status`
+
+Get gate status for a task and target status transition.
+
+```
+Inputs:
+  - taskId (required): Task ID
+  - forStatus (required): Status to check gates for
+
+Returns: {
+  allPassed: boolean,
+  gates: [{ gate, lastRun, status }],
+  blockedBy: Gate[]
+}
+```
+
+### Task Templates
+
+Tools for creating and using reusable task patterns.
+
+#### `scrum_template_create`
+
+Create a reusable task template with pre-configured settings.
+
+```
+Inputs:
+  - name (required): Unique template name
+  - titlePattern (required): Title with {{placeholders}}
+  - descriptionTemplate (optional): Description with {{placeholders}}
+  - defaultStatus (optional): Default status
+  - defaultPriority (optional): Default priority
+  - defaultLabels (optional): Default labels array
+  - defaultStoryPoints (optional): Default story points
+  - gates (optional): Pre-configured gates array
+  - checklist (optional): Acceptance checklist items
+
+Returns: { id, name, titlePattern, ... }
+```
+
+#### `scrum_template_get`
+
+Get a task template by name or ID.
+
+```
+Inputs:
+  - nameOrId (required): Template name or ID
+
+Returns: { template }
+```
+
+#### `scrum_templates_list`
+
+List all available task templates.
+
+```
+Returns: { count, templates[] }
+```
+
+#### `scrum_task_from_template`
+
+Create a new task from a template with variable substitution.
+
+```
+Inputs:
+  - template (required): Template name or ID
+  - variables (required): Substitutions (e.g., {"issue": "Bug in login"})
+  - overrides (optional): Override template defaults
+
+Returns: { status: "ok", task, fromTemplate }
+```
+
+### Webhooks
+
+Tools for event notifications to external systems.
+
+> **⚠️ Security Notes:**
+> - **SSRF Protection:** In production, validate webhook URLs to block internal/private IPs
+>   (localhost, 10.x, 172.16-31.x, 192.168.x). SCRUM does not currently enforce this.
+> - **HMAC Signing:** The `secret` field is stored but HMAC signing is not yet implemented.
+>   Webhook payloads are sent unsigned. Future versions will add `X-SCRUM-Signature` header.
+
+#### `scrum_webhook_register`
+
+Register an outbound webhook for event notifications.
+
+```
+Inputs:
+  - name (required): Webhook name
+  - url (required): Webhook URL
+  - events (required): Events to subscribe to:
+    - "task.created", "task.updated", "task.completed"
+    - "intent.posted", "claim.created", "claim.conflict", "claim.released"
+    - "evidence.attached", "gate.passed", "gate.failed"
+  - headers (optional): Custom headers
+  - secret (optional): Secret for HMAC signing
+
+Returns: { id, name, url, events, enabled, createdAt }
+```
+
+#### `scrum_webhooks_list`
+
+List all registered webhooks.
+
+```
+Inputs:
+  - enabledOnly (optional): Only show enabled webhooks
+
+Returns: { count, webhooks[] }
+```
+
+#### `scrum_webhook_update`
+
+Update a webhook configuration.
+
+```
+Inputs:
+  - webhookId (required): Webhook ID
+  - url (optional): New URL
+  - events (optional): New events
+  - headers (optional): New headers
+  - enabled (optional): Enable/disable webhook
+
+Returns: { webhook }
+```
+
+#### `scrum_webhook_delete`
+
+Delete a webhook.
+
+```
+Inputs:
+  - webhookId (required): Webhook ID
+
+Returns: { deleted: true }
+```
+
+#### `scrum_webhook_deliveries`
+
+Get recent delivery history for a webhook.
+
+```
+Inputs:
+  - webhookId (required): Webhook ID
+  - limit (optional): Max deliveries (default: 50)
+
+Returns: { count, deliveries[] }
 ```
 
 ### Changelog Extensions

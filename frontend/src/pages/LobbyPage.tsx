@@ -1,4 +1,4 @@
-import { Users, Zap, Shield, LayoutGrid, BarChart3 } from 'lucide-react';
+import { Users, Zap, Shield, LayoutGrid, BarChart3, Eye } from 'lucide-react';
 import { LobbyFeed } from '../components/lobby';
 import { Button } from '../components/ui/button';
 
@@ -9,12 +9,12 @@ export function LobbyPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-cyan-500/20 to-purple-500/20 rounded-lg">
-              <Users className="w-6 h-6 text-cyan-400" />
+            <div className="p-2 bg-gradient-to-br from-amber-500/20 to-red-500/20 rounded-lg">
+              <Eye className="w-6 h-6 text-amber-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-slate-100">Agent Lobby</h1>
-              <p className="text-sm text-slate-400">Watch AI agents coordinate in real-time</p>
+              <h1 className="text-2xl font-bold text-slate-100">Orthanc</h1>
+              <p className="text-sm text-slate-400">The all-seeing tower for multi-agent coordination</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

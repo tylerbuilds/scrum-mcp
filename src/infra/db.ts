@@ -112,6 +112,85 @@ function migrate(db: ScrumDb) {
       updated_at INTEGER NOT NULL
     );
 
+    -- Agent registry for observability and coordination
+    CREATE TABLE IF NOT EXISTS agents (
+      agent_id TEXT PRIMARY KEY,
+      capabilities_json TEXT NOT NULL,   -- e.g., ["code_review", "testing", "debugging"]
+      metadata_json TEXT,                -- e.g., {"model": "claude-3-opus", "session": "abc123"}
+      last_heartbeat INTEGER NOT NULL,   -- ms timestamp
+      registered_at INTEGER NOT NULL,
+      status TEXT DEFAULT 'active'       -- 'active', 'idle', 'offline'
+    );
+
+    -- Approval gates define validation steps before status transitions
+    CREATE TABLE IF NOT EXISTS gates (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      gate_type TEXT NOT NULL,           -- 'lint', 'test', 'build', 'review', 'custom'
+      command TEXT NOT NULL,             -- e.g., "npm run lint", "pytest -q"
+      trigger_status TEXT NOT NULL,      -- Status that triggers this gate (e.g., 'done')
+      required INTEGER DEFAULT 1,        -- 1=must pass to transition, 0=optional
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    -- Gate run history for audit trail
+    CREATE TABLE IF NOT EXISTS gate_runs (
+      id TEXT PRIMARY KEY,
+      gate_id TEXT NOT NULL,
+      task_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      passed INTEGER NOT NULL,           -- 1=passed, 0=failed
+      output TEXT,                       -- Command output (clipped)
+      duration_ms INTEGER,               -- How long the gate took
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(gate_id) REFERENCES gates(id) ON DELETE CASCADE,
+      FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    -- Task templates for reusable task patterns
+    CREATE TABLE IF NOT EXISTS task_templates (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      title_pattern TEXT NOT NULL,       -- e.g., "Fix: {{issue}}"
+      description_template TEXT,         -- Markdown with {{placeholders}}
+      default_status TEXT DEFAULT 'backlog',
+      default_priority TEXT DEFAULT 'medium',
+      default_labels_json TEXT DEFAULT '[]',
+      default_story_points INTEGER,
+      gates_json TEXT,                   -- Pre-configured gates as JSON array
+      checklist_json TEXT,               -- Acceptance checklist items
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER
+    );
+
+    -- Outbound webhooks for event notifications
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      events_json TEXT NOT NULL,         -- ["task.created", "task.completed", "claim.conflict"]
+      headers_json TEXT,                 -- Custom headers (e.g., authorization)
+      secret TEXT,                       -- For HMAC signing
+      enabled INTEGER DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER
+    );
+
+    -- Webhook delivery history for debugging
+    CREATE TABLE IF NOT EXISTS webhook_deliveries (
+      id TEXT PRIMARY KEY,
+      webhook_id TEXT NOT NULL,
+      event_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status_code INTEGER,
+      response TEXT,
+      duration_ms INTEGER,
+      success INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+    );
+
     -- Performance indexes
     CREATE INDEX IF NOT EXISTS idx_intents_task_id ON intents(task_id);
     CREATE INDEX IF NOT EXISTS idx_evidence_task_id ON evidence(task_id);
@@ -125,6 +204,15 @@ function migrate(db: ScrumDb) {
     CREATE INDEX IF NOT EXISTS idx_blockers_task_id ON blockers(task_id);
     CREATE INDEX IF NOT EXISTS idx_dependencies_task_id ON task_dependencies(task_id);
     CREATE INDEX IF NOT EXISTS idx_dependencies_depends_on ON task_dependencies(depends_on_task_id);
+    CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+    CREATE INDEX IF NOT EXISTS idx_agents_last_heartbeat ON agents(last_heartbeat);
+    CREATE INDEX IF NOT EXISTS idx_gates_task_id ON gates(task_id);
+    CREATE INDEX IF NOT EXISTS idx_gate_runs_task_id ON gate_runs(task_id);
+    CREATE INDEX IF NOT EXISTS idx_gate_runs_gate_id ON gate_runs(gate_id);
+    CREATE INDEX IF NOT EXISTS idx_templates_name ON task_templates(name);
+    CREATE INDEX IF NOT EXISTS idx_webhooks_enabled ON webhooks(enabled);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_webhook_id ON webhook_deliveries(webhook_id);
+    CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created_at ON webhook_deliveries(created_at);
   `);
 
   // Kanban columns migration - add columns if they don't exist

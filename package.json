@@ -16,7 +16,8 @@
     "format": "prettier -w .",
     "test": "vitest run",
     "cli": "node dist/cli.js",
-    "mcp": "node dist/mcp.js"
+    "mcp": "node dist/mcp.js",
+    "dashboard": "node dashboard/server.js"
   },
   "dependencies": {
     "@fastify/helmet": "^13.0.0",

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orthanc - SCRUM Dashboard</title>
+  <style>
+    :root {
+      --bg-dark: #0f1419;
+      --bg-card: #1a1f26;
+      --bg-hover: #252b33;
+      --border: #2d3640;
+      --text-primary: #e7e9ea;
+      --text-secondary: #8b98a5;
+      --text-muted: #5c6b7a;
+      --amber: #f59e0b;
+      --amber-dim: #92400e;
+      --teal: #14b8a6;
+      --teal-dim: #115e59;
+      --green: #22c55e;
+      --green-dim: #166534;
+      --red: #ef4444;
+      --red-dim: #991b1b;
+      --orange: #f97316;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .header {
+      background: linear-gradient(135deg, var(--amber-dim) 0%, var(--teal-dim) 100%);
+      padding: 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .logo svg { width: 32px; height: 32px; color: var(--amber); }
+    .logo h1 { font-size: 1.5rem; font-weight: 700; }
+    .logo span { color: var(--text-secondary); font-size: 0.875rem; }
+    .search-box {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--bg-dark);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 1rem;
+      min-width: 300px;
+    }
+    .search-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.875rem;
+      outline: none;
+    }
+    .search-box input::placeholder { color: var(--text-muted); }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.875rem;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.offline { background: var(--red); animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .main { display: flex; min-height: calc(100vh - 80px); }
+    .sidebar {
+      width: 200px;
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      padding: 1rem 0;
+      flex-shrink: 0;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 1.25rem;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .nav-item.active {
+      background: var(--bg-hover);
+      color: var(--amber);
+      border-left-color: var(--amber);
+    }
+    .nav-item svg { width: 18px; height: 18px; }
+    .nav-item .badge {
+      margin-left: auto;
+      background: var(--amber-dim);
+      color: var(--amber);
+      padding: 0.125rem 0.5rem;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .content { flex: 1; padding: 1.5rem; overflow: auto; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    .stat-card .label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .stat-card .value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--amber);
+      margin-top: 0.25rem;
+    }
+    .stat-card.teal .value { color: var(--teal); }
+    .stat-card.green .value { color: var(--green); }
+    .stat-card.orange .value { color: var(--orange); }
+    .feed {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .feed-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .feed-header h2 { font-size: 1rem; font-weight: 600; }
+    .feed-list { max-height: 600px; overflow-y: auto; }
+    .feed-item {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      gap: 1rem;
+      transition: background 0.15s;
+    }
+    .feed-item:hover { background: var(--bg-hover); }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .feed-icon.task { background: var(--amber-dim); color: var(--amber); }
+    .feed-icon.claim { background: var(--teal-dim); color: var(--teal); }
+    .feed-icon.intent { background: var(--green-dim); color: var(--green); }
+    .feed-icon.evidence { background: #1e3a5f; color: #60a5fa; }
+    .feed-icon.change { background: #3f3f46; color: #a1a1aa; }
+    .feed-icon.agent { background: #4c1d95; color: #a78bfa; }
+    .feed-icon svg { width: 18px; height: 18px; }
+    .feed-body { flex: 1; min-width: 0; }
+    .feed-title {
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .feed-meta {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      margin-top: 0.25rem;
+    }
+    .feed-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+    .tag {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      margin-right: 0.5rem;
+    }
+    .tag.backlog { background: var(--text-muted); color: var(--bg-dark); }
+    .tag.todo { background: var(--amber-dim); color: var(--amber); }
+    .tag.in_progress { background: var(--teal-dim); color: var(--teal); }
+    .tag.review { background: #1e3a5f; color: #60a5fa; }
+    .tag.done { background: var(--green-dim); color: var(--green); }
+    .tag.cancelled { background: var(--red-dim); color: var(--red); }
+    .empty-state {
+      padding: 3rem;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .refresh-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 0.375rem 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8125rem;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .tab {
+      padding: 0.5rem 1rem;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 0.875rem;
+      transition: all 0.15s;
+    }
+    .tab:hover { background: var(--bg-hover); }
+    .tab.active { background: var(--amber-dim); color: var(--amber); border-color: var(--amber-dim); }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .search-box { min-width: auto; flex: 1; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <circle cx="12" cy="12" r="4"/>
+        <line x1="12" y1="2" x2="12" y2="6"/>
+        <line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="6" y2="12"/>
+        <line x1="18" y1="12" x2="22" y2="12"/>
+      </svg>
+      <div>
+        <h1>Orthanc</h1>
+        <span>Multi-Agent Coordination Tower</span>
+      </div>
+    </div>
+    <div class="search-box">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="search" placeholder="Search tasks, agents, files...">
+    </div>
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting...</span>
+      <span id="lastUpdate" style="color: var(--text-muted)"></span>
+    </div>
+  </header>
+
+  <main class="main">
+    <nav class="sidebar">
+      <div class="nav-item active" data-view="feed">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+        Live Feed
+      </div>
+      <div class="nav-item" data-view="tasks">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Tasks
+        <span class="badge" id="taskCount">0</span>
+      </div>
+      <div class="nav-item" data-view="agents">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Agents
+        <span class="badge" id="agentCount">0</span>
+      </div>
+      <div class="nav-item" data-view="claims">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Claims
+        <span class="badge" id="claimCount">0</span>
+      </div>
+      <div class="nav-item" data-view="changelog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Changelog
+      </div>
+      <div class="nav-item" data-view="metrics">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Metrics
+      </div>
+    </nav>
+
+    <section class="content" id="content">
+      <!-- Dynamic content -->
+    </section>
+  </main>
+
+  <script>
+    const API_BASE = window.location.hostname === 'localhost'
+      ? 'http://localhost:3000/api'
+      : `${window.location.protocol}//${window.location.hostname}:3000/api`;
+
+    let currentView = 'feed';
+    let allData = { tasks: [], agents: [], claims: [], changelog: [], intents: [], evidence: [] };
+    let searchQuery = '';
+
+    // Icons as SVG strings
+    const icons = {
+      task: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+      claim: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+      intent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+      evidence: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="m9 15 2 2 4-4"/></svg>',
+      change: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+      agent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><path d="M8 16h.01"/><path d="M16 16h.01"/></svg>'
+    };
+
+    function timeAgo(date) {
+      const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+      if (seconds < 60) return 'just now';
+      if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+      if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+      return `${Math.floor(seconds / 86400)}d ago`;
+    }
+
+    function matchesSearch(item) {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      const searchable = JSON.stringify(item).toLowerCase();
+      return searchable.includes(q);
+    }
+
+    async function fetchData() {
+      try {
+        const [tasksRes, agentsRes, claimsRes, changelogRes, intentsRes, evidenceRes] = await Promise.all([
+          fetch(`${API_BASE}/tasks`).then(r => r.json()).catch(() => ({ tasks: [] })),
+          fetch(`${API_BASE}/agents`).then(r => r.json()).catch(() => ({ agents: [] })),
+          fetch(`${API_BASE}/claims`).then(r => r.json()).catch(() => ({ claims: [] })),
+          fetch(`${API_BASE}/changelog?limit=100`).then(r => r.json()).catch(() => ({ entries: [] })),
+          fetch(`${API_BASE}/intents`).then(r => r.json()).catch(() => ({ intents: [] })),
+          fetch(`${API_BASE}/evidence`).then(r => r.json()).catch(() => ({ evidence: [] }))
+        ]);
+
+        allData = {
+          tasks: tasksRes.tasks || [],
+          agents: agentsRes.agents || [],
+          claims: claimsRes.claims || [],
+          changelog: changelogRes.entries || [],
+          intents: intentsRes.intents || [],
+          evidence: evidenceRes.evidence || []
+        };
+
+        document.getElementById('statusDot').classList.remove('offline');
+        document.getElementById('statusText').textContent = 'Connected';
+        document.getElementById('lastUpdate').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+        updateCounts();
+        render();
+      } catch (e) {
+        document.getElementById('statusDot').classList.add('offline');
+        document.getElementById('statusText').textContent = 'Offline';
+        console.error('Fetch error:', e);
+      }
+    }
+
+    function updateCounts() {
+      document.getElementById('taskCount').textContent = allData.tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length;
+      document.getElementById('agentCount').textContent = allData.agents.filter(a => a.status === 'online').length;
+      document.getElementById('claimCount').textContent = allData.claims.length;
+    }
+
+    function render() {
+      const content = document.getElementById('content');
+      switch (currentView) {
+        case 'feed': content.innerHTML = renderFeed(); break;
+        case 'tasks': content.innerHTML = renderTasks(); break;
+        case 'agents': content.innerHTML = renderAgents(); break;
+        case 'claims': content.innerHTML = renderClaims(); break;
+        case 'changelog': content.innerHTML = renderChangelog(); break;
+        case 'metrics': content.innerHTML = renderMetrics(); break;
+      }
+    }
+
+    function renderFeed() {
+      // Combine all events into timeline
+      const events = [];
+
+      allData.tasks.forEach(t => events.push({ type: 'task', data: t, time: t.updatedAt || t.createdAt }));
+      allData.claims.forEach(c => events.push({ type: 'claim', data: c, time: c.createdAt }));
+      allData.intents.forEach(i => events.push({ type: 'intent', data: i, time: i.postedAt }));
+      allData.evidence.forEach(e => events.push({ type: 'evidence', data: e, time: e.createdAt }));
+      allData.changelog.forEach(c => events.push({ type: 'change', data: c, time: c.createdAt }));
+
+      events.sort((a, b) => new Date(b.time) - new Date(a.time));
+      const filtered = events.filter(e => matchesSearch(e.data)).slice(0, 50);
+
+      if (filtered.length === 0) {
+        return `<div class="feed"><div class="empty-state">No activity yet. Start coordinating!</div></div>`;
+      }
+
+      const items = filtered.map(e => {
+        let title, meta;
+        switch (e.type) {
+          case 'task':
+            title = e.data.title;
+            meta = `<span class="tag ${e.data.status}">${e.data.status}</span>${e.data.assignedAgent || 'Unassigned'}`;
+            break;
+          case 'claim':
+            title = e.data.filePath;
+            meta = `Claimed by ${e.data.agentId}`;
+            break;
+          case 'intent':
+            title = `Intent for task ${e.data.taskId}`;
+            meta = `${e.data.agentId} - ${(e.data.files || []).length} files`;
+            break;
+          case 'evidence':
+            title = `Evidence: ${e.data.command}`;
+            meta = `Task ${e.data.taskId} by ${e.data.agentId}`;
+            break;
+          case 'change':
+            title = `${e.data.changeType}: ${e.data.filePath}`;
+            meta = `${e.data.agentId} - ${e.data.summary || ''}`;
+            break;
+        }
+        return `
+          <div class="feed-item">
+            <div class="feed-icon ${e.type}">${icons[e.type]}</div>
+            <div class="feed-body">
+              <div class="feed-title">${title}</div>
+              <div class="feed-meta">${meta}</div>
+            </div>
+            <div class="feed-time">${timeAgo(e.time)}</div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">Active Tasks</div><div class="value">${allData.tasks.filter(t => t.status === 'in_progress').length}</div></div>
+          <div class="stat-card teal"><div class="label">Active Claims</div><div class="value">${allData.claims.length}</div></div>
+          <div class="stat-card green"><div class="label">Online Agents</div><div class="value">${allData.agents.filter(a => a.status === 'online').length}</div></div>
+          <div class="stat-card orange"><div class="label">In Review</div><div class="value">${allData.tasks.filter(t => t.status === 'review').length}</div></div>
+        </div>
+        <div class="feed">
+          <div class="feed-header">
+            <h2>Activity Feed</h2>
+            <button class="refresh-btn" onclick="fetchData()">Refresh</button>
+          </div>
+          <div class="feed-list">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderTasks() {
+      const statuses = ['backlog', 'todo', 'in_progress', 'review', 'done'];
+      const filtered = allData.tasks.filter(matchesSearch);
+
+      const columns = statuses.map(status => {
+        const tasks = filtered.filter(t => t.status === status);
+        const items = tasks.map(t => `
+          <div class="feed-item">
+            <div class="feed-icon task">${icons.task}</div>
+            <div class="feed-body">
+              <div class="feed-title">${t.title}</div>
+              <div class="feed-meta">${t.assignedAgent || 'Unassigned'} - P${t.priority || 3}</div>
+            </div>
+            <div class="feed-time">${timeAgo(t.updatedAt || t.createdAt)}</div>
+          </div>
+        `).join('') || '<div class="empty-state" style="padding:1rem">No tasks</div>';
+
+        return `
+          <div class="feed" style="flex:1;min-width:280px">
+            <div class="feed-header">
+              <h2><span class="tag ${status}">${status.replace('_', ' ')}</span> ${tasks.length}</h2>
+            </div>
+            <div class="feed-list" style="max-height:500px">${items}</div>
+          </div>
+        `;
+      }).join('');
+
+      return `<div style="display:flex;gap:1rem;overflow-x:auto">${columns}</div>`;
+    }
+
+    function renderAgents() {
+      const filtered = allData.agents.filter(matchesSearch);
+      if (filtered.length === 0) {
+        return `<div class="feed"><div class="empty-state">No agents registered</div></div>`;
+      }
+
+      const items = filtered.map(a => `
+        <div class="feed-item">
+          <div class="feed-icon agent">${icons.agent}</div>
+          <div class="feed-body">
+            <div class="feed-title">${a.agentId}</div>
+            <div class="feed-meta">
+              <span class="tag ${a.status === 'online' ? 'done' : 'cancelled'}">${a.status}</span>
+              ${a.capabilities?.join(', ') || 'No capabilities'}
+            </div>
+          </div>
+          <div class="feed-time">${a.lastHeartbeat ? timeAgo(a.lastHeartbeat) : 'Never'}</div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="feed">
+          <div class="feed-header"><h2>Registered Agents</h2></div>
+          <div class="feed-list">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderClaims() {
+      const filtered = allData.claims.filter(matchesSearch);
+      if (filtered.length === 0) {
+        return `<div class="feed"><div class="empty-state">No active claims</div></div>`;
+      }
+
+      const items = filtered.map(c => `
+        <div class="feed-item">
+          <div class="feed-icon claim">${icons.claim}</div>
+          <div class="feed-body">
+            <div class="feed-title">${c.filePath}</div>
+            <div class="feed-meta">${c.agentId} - Expires ${timeAgo(c.expiresAt)}</div>
+          </div>
+          <div class="feed-time">${timeAgo(c.createdAt)}</div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="feed">
+          <div class="feed-header"><h2>Active File Claims</h2></div>
+          <div class="feed-list">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderChangelog() {
+      const filtered = allData.changelog.filter(matchesSearch);
+      if (filtered.length === 0) {
+        return `<div class="feed"><div class="empty-state">No changes logged</div></div>`;
+      }
+
+      const items = filtered.map(c => `
+        <div class="feed-item">
+          <div class="feed-icon change">${icons.change}</div>
+          <div class="feed-body">
+            <div class="feed-title">${c.changeType}: ${c.filePath}</div>
+            <div class="feed-meta">${c.agentId} - ${c.summary || 'No summary'}</div>
+          </div>
+          <div class="feed-time">${timeAgo(c.createdAt)}</div>
+        </div>
+      `).join('');
+
+      return `
+        <div class="feed">
+          <div class="feed-header"><h2>Change Log</h2></div>
+          <div class="feed-list">${items}</div>
+        </div>
+      `;
+    }
+
+    function renderMetrics() {
+      const done = allData.tasks.filter(t => t.status === 'done');
+      const inProgress = allData.tasks.filter(t => t.status === 'in_progress');
+      const total = allData.tasks.length;
+      const completion = total ? Math.round((done.length / total) * 100) : 0;
+
+      return `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">Total Tasks</div><div class="value">${total}</div></div>
+          <div class="stat-card green"><div class="label">Completed</div><div class="value">${done.length}</div></div>
+          <div class="stat-card teal"><div class="label">In Progress</div><div class="value">${inProgress.length}</div></div>
+          <div class="stat-card orange"><div class="label">Completion Rate</div><div class="value">${completion}%</div></div>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="label">Total Evidence</div><div class="value">${allData.evidence.length}</div></div>
+          <div class="stat-card teal"><div class="label">Total Intents</div><div class="value">${allData.intents.length}</div></div>
+          <div class="stat-card green"><div class="label">Changelog Entries</div><div class="value">${allData.changelog.length}</div></div>
+          <div class="stat-card orange"><div class="label">Agents Seen</div><div class="value">${allData.agents.length}</div></div>
+        </div>
+        <div class="feed">
+          <div class="feed-header"><h2>Task Distribution</h2></div>
+          <div style="padding:1.5rem;display:flex;gap:1rem;flex-wrap:wrap">
+            ${['backlog','todo','in_progress','review','done','cancelled'].map(s => {
+              const count = allData.tasks.filter(t => t.status === s).length;
+              return `<div><span class="tag ${s}">${s.replace('_',' ')}</span> ${count}</div>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // Event handlers
+    document.querySelectorAll('.nav-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        currentView = item.dataset.view;
+        render();
+      });
+    });
+
+    document.getElementById('search').addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      render();
+    });
+
+    // Initial load and auto-refresh
+    fetchData();
+    setInterval(fetchData, 5000);
+  </script>
+</body>
+</html>

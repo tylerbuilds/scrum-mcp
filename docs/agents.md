@@ -87,3 +87,27 @@ A task is only "done" when:
 - Required gates passed (or waived with a written reason)
 - Tokens created when behaviour changed
 
+## Approval Gates
+
+Gates are automated validation steps that must pass before status transitions:
+
+- **lint** - Code style and lint checks
+- **test** - Unit/integration tests
+- **build** - Build/compile verification
+- **review** - Manual review checkpoint
+- **custom** - Any custom command
+
+Gates are defined per-task and can be pre-configured via templates.
+Use `scrum_gate_status` to check if all gates pass before transitioning.
+
+## Task Templates
+
+Create reusable task patterns with:
+
+- Title/description with `{{placeholders}}`
+- Pre-configured status, priority, labels
+- Automatic gates and checklists
+- Story point defaults
+
+Example: A "bugfix" template that auto-adds lint + test gates for the "done" status.
+

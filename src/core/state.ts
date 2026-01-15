@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import type { Logger } from 'pino';
 import type { ScrumDb } from '../infra/db';
-import type { AgingWipTask, Blocker, BoardMetrics, ChangelogEntry, ChangeType, Claim, Comment, Evidence, Intent, Task, TaskDependency, TaskMetrics, TaskStatus, TaskPriority, VelocityPeriod, WipLimits, WipStatus } from './types';
+import type { Agent, AgentStatus, AgingWipTask, Blocker, BoardMetrics, ChangelogEntry, ChangeType, Claim, Comment, DeadWork, DeadWorkReason, Evidence, Gate, GateConfig, GateResult, GateResultStatus, GateRun, GateStatus, GateType, Intent, Task, TaskDependency, TaskMetrics, TaskPriority, TaskStatus, TaskTemplate, VelocityPeriod, Webhook, WebhookDelivery, WebhookEventType, WipLimits, WipStatus } from './types';
 
 const MAX_OUTPUT_CHARS = 20000;
 
@@ -568,6 +568,28 @@ export class ScrumState {
     }
     const info = this.db.prepare('DELETE FROM claims WHERE agent_id = ?').run(agentId);
     return info.changes;
+  }
+
+  /** Extend TTL of existing claims without releasing them */
+  extendClaims(agentId: string, additionalSeconds: number, files?: string[]): { extended: number; newExpiresAt: number } {
+    this.pruneExpiredClaims();
+
+    const additionalMs = additionalSeconds * 1000;
+    const newExpiresAt = now() + additionalMs;
+
+    let info: { changes: number };
+    if (files && files.length > 0) {
+      const placeholders = files.map(() => '?').join(',');
+      info = this.db
+        .prepare(`UPDATE claims SET expires_at = ? WHERE agent_id = ? AND file_path IN (${placeholders})`)
+        .run(newExpiresAt, agentId, ...files);
+    } else {
+      info = this.db
+        .prepare('UPDATE claims SET expires_at = ? WHERE agent_id = ?')
+        .run(newExpiresAt, agentId);
+    }
+
+    return { extended: info.changes, newExpiresAt };
   }
 
   /** Check if agent has declared intent for the given files (any intent covering all files) */
@@ -1563,5 +1585,742 @@ export class ScrumState {
     };
 
     return checkPath(dependsOnTaskId);
+  }
+
+  // ==================== AGENT REGISTRY ====================
+
+  /** Register or update an agent with capabilities and metadata */
+  registerAgent(input: {
+    agentId: string;
+    capabilities: string[];
+    metadata?: Record<string, unknown>;
+  }): Agent {
+    const t = now();
+    const agent: Agent = {
+      agentId: input.agentId,
+      capabilities: input.capabilities,
+      metadata: input.metadata,
+      lastHeartbeat: t,
+      registeredAt: t,
+      status: 'active'
+    };
+
+    // Check if agent already exists
+    const existing = this.db
+      .prepare('SELECT registered_at FROM agents WHERE agent_id = ?')
+      .get(input.agentId) as { registered_at: number } | undefined;
+
+    if (existing) {
+      // Update existing agent
+      this.db
+        .prepare(`UPDATE agents SET
+          capabilities_json = ?,
+          metadata_json = ?,
+          last_heartbeat = ?,
+          status = 'active'
+          WHERE agent_id = ?`)
+        .run(
+          JSON.stringify(agent.capabilities),
+          JSON.stringify(agent.metadata ?? {}),
+          agent.lastHeartbeat,
+          agent.agentId
+        );
+      agent.registeredAt = existing.registered_at;
+    } else {
+      // Insert new agent
+      this.db
+        .prepare(`INSERT INTO agents
+          (agent_id, capabilities_json, metadata_json, last_heartbeat, registered_at, status)
+          VALUES (?, ?, ?, ?, ?, ?)`)
+        .run(
+          agent.agentId,
+          JSON.stringify(agent.capabilities),
+          JSON.stringify(agent.metadata ?? {}),
+          agent.lastHeartbeat,
+          agent.registeredAt,
+          agent.status
+        );
+    }
+
+    return agent;
+  }
+
+  /** List agents with optional filtering */
+  listAgents(options?: { status?: AgentStatus; includeOffline?: boolean }): Agent[] {
+    // Mark agents as offline if no heartbeat in 5 minutes
+    const offlineThreshold = now() - (5 * 60 * 1000);
+    this.db
+      .prepare("UPDATE agents SET status = 'offline' WHERE last_heartbeat < ? AND status != 'offline'")
+      .run(offlineThreshold);
+
+    let query = 'SELECT * FROM agents';
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options?.status) {
+      conditions.push('status = ?');
+      params.push(options.status);
+    }
+
+    if (!options?.includeOffline) {
+      conditions.push("status != 'offline'");
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ' ORDER BY last_heartbeat DESC';
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      agent_id: string;
+      capabilities_json: string;
+      metadata_json: string | null;
+      last_heartbeat: number;
+      registered_at: number;
+      status: string;
+    }>;
+
+    return rows.map(r => ({
+      agentId: r.agent_id,
+      capabilities: JSON.parse(r.capabilities_json),
+      metadata: r.metadata_json ? JSON.parse(r.metadata_json) : undefined,
+      lastHeartbeat: r.last_heartbeat,
+      registeredAt: r.registered_at,
+      status: r.status as AgentStatus
+    }));
+  }
+
+  /** Update agent heartbeat (keep-alive signal) */
+  agentHeartbeat(agentId: string): boolean {
+    const info = this.db
+      .prepare("UPDATE agents SET last_heartbeat = ?, status = 'active' WHERE agent_id = ?")
+      .run(now(), agentId);
+    return info.changes > 0;
+  }
+
+  /** Get a single agent by ID */
+  getAgent(agentId: string): Agent | null {
+    const row = this.db
+      .prepare('SELECT * FROM agents WHERE agent_id = ?')
+      .get(agentId) as {
+        agent_id: string;
+        capabilities_json: string;
+        metadata_json: string | null;
+        last_heartbeat: number;
+        registered_at: number;
+        status: string;
+      } | undefined;
+
+    if (!row) return null;
+
+    return {
+      agentId: row.agent_id,
+      capabilities: JSON.parse(row.capabilities_json),
+      metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
+      lastHeartbeat: row.last_heartbeat,
+      registeredAt: row.registered_at,
+      status: row.status as AgentStatus
+    };
+  }
+
+  // ==================== DEAD WORK DETECTION ====================
+
+  /** Find tasks that are in_progress but appear abandoned */
+  findDeadWork(options?: { staleDays?: number }): DeadWork[] {
+    const staleDays = options?.staleDays ?? 1;
+    const staleThreshold = now() - (staleDays * 24 * 60 * 60 * 1000);
+
+    // Find in_progress tasks
+    const inProgressTasks = this.db
+      .prepare(`SELECT id, title, status, assigned_agent, started_at, created_at
+        FROM tasks WHERE status = 'in_progress'`)
+      .all() as Array<{
+        id: string;
+        title: string;
+        status: string;
+        assigned_agent: string | null;
+        started_at: number | null;
+        created_at: number;
+      }>;
+
+    const deadWork: DeadWork[] = [];
+
+    for (const task of inProgressTasks) {
+      const taskId = task.id;
+
+      // Check for active claims by assigned agent
+      const activeClaims = task.assigned_agent
+        ? this.getAgentClaims(task.assigned_agent)
+        : [];
+
+      // Check for recent evidence
+      const recentEvidence = this.db
+        .prepare('SELECT MAX(created_at) as latest FROM evidence WHERE task_id = ?')
+        .get(taskId) as { latest: number | null } | undefined;
+
+      // Check for recent changelog activity
+      const recentActivity = this.db
+        .prepare('SELECT MAX(created_at) as latest FROM changelog WHERE task_id = ?')
+        .get(taskId) as { latest: number | null } | undefined;
+
+      const lastEvidenceAt = recentEvidence?.latest ?? 0;
+      const lastChangelogAt = recentActivity?.latest ?? 0;
+      const lastActivityAt = Math.max(
+        lastEvidenceAt,
+        lastChangelogAt,
+        task.started_at ?? task.created_at
+      );
+
+      const hasActiveClaims = activeClaims.length > 0;
+      const hasRecentEvidence = lastEvidenceAt > staleThreshold;
+      const isStale = lastActivityAt < staleThreshold;
+
+      // Determine if this is dead work
+      let reason: DeadWorkReason | null = null;
+
+      if (!hasActiveClaims && isStale) {
+        reason = 'no_claims';
+      } else if (!hasRecentEvidence && isStale) {
+        reason = 'no_activity';
+      } else if (isStale) {
+        reason = 'stale';
+      }
+
+      if (reason) {
+        deadWork.push({
+          taskId,
+          title: task.title,
+          status: task.status as TaskStatus,
+          assignedAgent: task.assigned_agent ?? undefined,
+          startedAt: task.started_at ?? undefined,
+          daysStale: Math.floor((now() - lastActivityAt) / (24 * 60 * 60 * 1000)),
+          lastActivityAt,
+          hasActiveClaims,
+          hasRecentEvidence,
+          reason
+        });
+      }
+    }
+
+    // Sort by staleness (most stale first)
+    return deadWork.sort((a, b) => a.lastActivityAt - b.lastActivityAt);
+  }
+
+  // ==================== APPROVAL GATES ====================
+
+  /** Define a gate for a task */
+  defineGate(input: {
+    taskId: string;
+    gateType: GateType;
+    command: string;
+    triggerStatus: TaskStatus;
+    required?: boolean;
+  }): Gate {
+    const task = this.getTask(input.taskId);
+    if (!task) throw new Error(`Unknown taskId: ${input.taskId}`);
+
+    const gate: Gate = {
+      id: nanoid(12),
+      taskId: input.taskId,
+      gateType: input.gateType,
+      command: input.command,
+      triggerStatus: input.triggerStatus,
+      required: input.required ?? true,
+      createdAt: now()
+    };
+
+    this.db
+      .prepare(`INSERT INTO gates (id, task_id, gate_type, command, trigger_status, required, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(gate.id, gate.taskId, gate.gateType, gate.command, gate.triggerStatus, gate.required ? 1 : 0, gate.createdAt);
+
+    return gate;
+  }
+
+  /** List gates for a task */
+  listGates(taskId: string): Gate[] {
+    const rows = this.db
+      .prepare('SELECT * FROM gates WHERE task_id = ? ORDER BY created_at ASC')
+      .all(taskId) as Array<{
+        id: string;
+        task_id: string;
+        gate_type: string;
+        command: string;
+        trigger_status: string;
+        required: number;
+        created_at: number;
+      }>;
+
+    return rows.map(r => ({
+      id: r.id,
+      taskId: r.task_id,
+      gateType: r.gate_type as GateType,
+      command: r.command,
+      triggerStatus: r.trigger_status as TaskStatus,
+      required: !!r.required,
+      createdAt: r.created_at
+    }));
+  }
+
+  /** Record a gate run result */
+  recordGateRun(input: {
+    gateId: string;
+    taskId: string;
+    agentId: string;
+    passed: boolean;
+    output?: string;
+    durationMs?: number;
+  }): GateRun {
+    // Validate gate exists
+    const gate = this.db.prepare('SELECT id FROM gates WHERE id = ?').get(input.gateId);
+    if (!gate) {
+      throw new Error(`Unknown gateId: ${input.gateId}`);
+    }
+
+    const run: GateRun = {
+      id: nanoid(12),
+      gateId: input.gateId,
+      taskId: input.taskId,
+      agentId: input.agentId,
+      passed: input.passed,
+      output: input.output ? clipOutput(input.output) : undefined,
+      durationMs: input.durationMs,
+      createdAt: now()
+    };
+
+    this.db
+      .prepare(`INSERT INTO gate_runs (id, gate_id, task_id, agent_id, passed, output, duration_ms, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(run.id, run.gateId, run.taskId, run.agentId, run.passed ? 1 : 0, run.output, run.durationMs, run.createdAt);
+
+    return run;
+  }
+
+  /** Get gate status for a task at a specific status transition */
+  getGateStatus(taskId: string, forStatus: TaskStatus): GateStatus {
+    const gates = this.listGates(taskId).filter(g => g.triggerStatus === forStatus);
+    const results: GateResult[] = [];
+    const blockedBy: Gate[] = [];
+
+    for (const gate of gates) {
+      const lastRunRow = this.db
+        .prepare('SELECT * FROM gate_runs WHERE gate_id = ? ORDER BY created_at DESC LIMIT 1')
+        .get(gate.id) as {
+          id: string;
+          gate_id: string;
+          task_id: string;
+          agent_id: string;
+          passed: number;
+          output: string | null;
+          duration_ms: number | null;
+          created_at: number;
+        } | undefined;
+
+      let status: GateResultStatus = 'not_run';
+      let lastRun: GateRun | undefined;
+
+      if (lastRunRow) {
+        status = lastRunRow.passed ? 'passed' : 'failed';
+        lastRun = {
+          id: lastRunRow.id,
+          gateId: lastRunRow.gate_id,
+          taskId: lastRunRow.task_id,
+          agentId: lastRunRow.agent_id,
+          passed: !!lastRunRow.passed,
+          output: lastRunRow.output ?? undefined,
+          durationMs: lastRunRow.duration_ms ?? undefined,
+          createdAt: lastRunRow.created_at
+        };
+      }
+
+      results.push({ gate, lastRun, status });
+
+      if (gate.required && status !== 'passed') {
+        blockedBy.push(gate);
+      }
+    }
+
+    return {
+      allPassed: blockedBy.length === 0,
+      gates: results,
+      blockedBy
+    };
+  }
+
+  // ==================== TASK TEMPLATES ====================
+
+  /** Create a task template */
+  createTemplate(input: {
+    name: string;
+    titlePattern: string;
+    descriptionTemplate?: string;
+    defaultStatus?: TaskStatus;
+    defaultPriority?: TaskPriority;
+    defaultLabels?: string[];
+    defaultStoryPoints?: number;
+    gates?: GateConfig[];
+    checklist?: string[];
+  }): TaskTemplate {
+    const template: TaskTemplate = {
+      id: nanoid(12),
+      name: input.name,
+      titlePattern: input.titlePattern,
+      descriptionTemplate: input.descriptionTemplate,
+      defaultStatus: input.defaultStatus ?? 'backlog',
+      defaultPriority: input.defaultPriority ?? 'medium',
+      defaultLabels: input.defaultLabels ?? [],
+      defaultStoryPoints: input.defaultStoryPoints,
+      gates: input.gates,
+      checklist: input.checklist,
+      createdAt: now()
+    };
+
+    this.db
+      .prepare(`INSERT INTO task_templates
+        (id, name, title_pattern, description_template, default_status, default_priority,
+         default_labels_json, default_story_points, gates_json, checklist_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        template.id,
+        template.name,
+        template.titlePattern,
+        template.descriptionTemplate,
+        template.defaultStatus,
+        template.defaultPriority,
+        JSON.stringify(template.defaultLabels),
+        template.defaultStoryPoints,
+        JSON.stringify(template.gates ?? []),
+        JSON.stringify(template.checklist ?? []),
+        template.createdAt
+      );
+
+    return template;
+  }
+
+  /** Get a template by name or ID */
+  getTemplate(nameOrId: string): TaskTemplate | null {
+    const row = this.db
+      .prepare('SELECT * FROM task_templates WHERE id = ? OR name = ?')
+      .get(nameOrId, nameOrId) as {
+        id: string;
+        name: string;
+        title_pattern: string;
+        description_template: string | null;
+        default_status: string;
+        default_priority: string;
+        default_labels_json: string;
+        default_story_points: number | null;
+        gates_json: string | null;
+        checklist_json: string | null;
+        created_at: number;
+        updated_at: number | null;
+      } | undefined;
+
+    if (!row) return null;
+
+    return {
+      id: row.id,
+      name: row.name,
+      titlePattern: row.title_pattern,
+      descriptionTemplate: row.description_template ?? undefined,
+      defaultStatus: row.default_status as TaskStatus,
+      defaultPriority: row.default_priority as TaskPriority,
+      defaultLabels: JSON.parse(row.default_labels_json),
+      defaultStoryPoints: row.default_story_points ?? undefined,
+      gates: row.gates_json ? JSON.parse(row.gates_json) : undefined,
+      checklist: row.checklist_json ? JSON.parse(row.checklist_json) : undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at ?? undefined
+    };
+  }
+
+  /** List all templates */
+  listTemplates(): TaskTemplate[] {
+    const rows = this.db
+      .prepare('SELECT * FROM task_templates ORDER BY name ASC')
+      .all() as Array<{
+        id: string;
+        name: string;
+        title_pattern: string;
+        description_template: string | null;
+        default_status: string;
+        default_priority: string;
+        default_labels_json: string;
+        default_story_points: number | null;
+        gates_json: string | null;
+        checklist_json: string | null;
+        created_at: number;
+        updated_at: number | null;
+      }>;
+
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      titlePattern: row.title_pattern,
+      descriptionTemplate: row.description_template ?? undefined,
+      defaultStatus: row.default_status as TaskStatus,
+      defaultPriority: row.default_priority as TaskPriority,
+      defaultLabels: JSON.parse(row.default_labels_json),
+      defaultStoryPoints: row.default_story_points ?? undefined,
+      gates: row.gates_json ? JSON.parse(row.gates_json) : undefined,
+      checklist: row.checklist_json ? JSON.parse(row.checklist_json) : undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at ?? undefined
+    }));
+  }
+
+  /** Create a task from a template */
+  createTaskFromTemplate(
+    templateNameOrId: string,
+    variables: Record<string, string>,
+    overrides?: Partial<Task>
+  ): Task {
+    const template = this.getTemplate(templateNameOrId);
+    if (!template) throw new Error(`Unknown template: ${templateNameOrId}`);
+
+    // Replace {{placeholders}} in title and description
+    const interpolate = (str: string) => {
+      return str.replace(/\{\{(\w+)\}\}/g, (_, key) => variables[key] ?? `{{${key}}}`);
+    };
+
+    const title = overrides?.title ?? interpolate(template.titlePattern);
+    const description = overrides?.description ?? (template.descriptionTemplate
+      ? interpolate(template.descriptionTemplate)
+      : undefined);
+
+    // Create the task
+    const task = this.createTask(title, description, {
+      status: overrides?.status ?? template.defaultStatus,
+      priority: overrides?.priority ?? template.defaultPriority,
+      labels: overrides?.labels ?? template.defaultLabels,
+      storyPoints: overrides?.storyPoints ?? template.defaultStoryPoints,
+      assignedAgent: overrides?.assignedAgent,
+      dueDate: overrides?.dueDate
+    });
+
+    // Create pre-configured gates
+    if (template.gates) {
+      for (const gate of template.gates) {
+        this.defineGate({
+          taskId: task.id,
+          gateType: gate.gateType,
+          command: gate.command,
+          triggerStatus: gate.triggerStatus
+        });
+      }
+    }
+
+    return task;
+  }
+
+  // ==================== WEBHOOKS ====================
+
+  /** Register a webhook */
+  registerWebhook(input: {
+    name: string;
+    url: string;
+    events: WebhookEventType[];
+    headers?: Record<string, string>;
+    secret?: string;
+  }): Webhook {
+    const webhook: Webhook = {
+      id: nanoid(12),
+      name: input.name,
+      url: input.url,
+      events: input.events,
+      headers: input.headers,
+      secret: input.secret,
+      enabled: true,
+      createdAt: now()
+    };
+
+    this.db
+      .prepare(`INSERT INTO webhooks
+        (id, name, url, events_json, headers_json, secret, enabled, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        webhook.id,
+        webhook.name,
+        webhook.url,
+        JSON.stringify(webhook.events),
+        JSON.stringify(webhook.headers ?? {}),
+        webhook.secret,
+        1,
+        webhook.createdAt
+      );
+
+    return webhook;
+  }
+
+  /** List webhooks */
+  listWebhooks(options?: { event?: WebhookEventType; enabledOnly?: boolean }): Webhook[] {
+    let query = 'SELECT * FROM webhooks';
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (options?.enabledOnly) {
+      conditions.push('enabled = 1');
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ' ORDER BY created_at DESC';
+
+    const rows = this.db.prepare(query).all(...params) as Array<{
+      id: string;
+      name: string;
+      url: string;
+      events_json: string;
+      headers_json: string | null;
+      secret: string | null;
+      enabled: number;
+      created_at: number;
+      updated_at: number | null;
+    }>;
+
+    let webhooks = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      url: r.url,
+      events: JSON.parse(r.events_json) as WebhookEventType[],
+      headers: r.headers_json ? JSON.parse(r.headers_json) : undefined,
+      secret: r.secret ?? undefined,
+      enabled: !!r.enabled,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at ?? undefined
+    }));
+
+    // Filter by event if specified
+    if (options?.event) {
+      webhooks = webhooks.filter(w => w.events.includes(options.event!));
+    }
+
+    return webhooks;
+  }
+
+  /** Update webhook */
+  updateWebhook(webhookId: string, updates: {
+    url?: string;
+    events?: WebhookEventType[];
+    headers?: Record<string, string>;
+    enabled?: boolean;
+  }): Webhook | null {
+    const existing = this.db
+      .prepare('SELECT * FROM webhooks WHERE id = ?')
+      .get(webhookId);
+
+    if (!existing) return null;
+
+    const setClauses: string[] = [];
+    const params: (string | number)[] = [];
+
+    if (updates.url !== undefined) {
+      setClauses.push('url = ?');
+      params.push(updates.url);
+    }
+    if (updates.events !== undefined) {
+      setClauses.push('events_json = ?');
+      params.push(JSON.stringify(updates.events));
+    }
+    if (updates.headers !== undefined) {
+      setClauses.push('headers_json = ?');
+      params.push(JSON.stringify(updates.headers));
+    }
+    if (updates.enabled !== undefined) {
+      setClauses.push('enabled = ?');
+      params.push(updates.enabled ? 1 : 0);
+    }
+
+    setClauses.push('updated_at = ?');
+    params.push(now());
+    params.push(webhookId);
+
+    this.db
+      .prepare(`UPDATE webhooks SET ${setClauses.join(', ')} WHERE id = ?`)
+      .run(...params);
+
+    return this.listWebhooks().find(w => w.id === webhookId) ?? null;
+  }
+
+  /** Delete webhook */
+  deleteWebhook(webhookId: string): boolean {
+    const info = this.db.prepare('DELETE FROM webhooks WHERE id = ?').run(webhookId);
+    return info.changes > 0;
+  }
+
+  /** Record a webhook delivery */
+  recordWebhookDelivery(input: {
+    webhookId: string;
+    eventType: WebhookEventType;
+    payload: Record<string, unknown>;
+    statusCode?: number;
+    response?: string;
+    durationMs?: number;
+    success: boolean;
+  }): WebhookDelivery {
+    const delivery: WebhookDelivery = {
+      id: nanoid(12),
+      webhookId: input.webhookId,
+      eventType: input.eventType,
+      payload: input.payload,
+      statusCode: input.statusCode,
+      response: input.response ? input.response.slice(0, 1000) : undefined,
+      durationMs: input.durationMs,
+      success: input.success,
+      createdAt: now()
+    };
+
+    this.db
+      .prepare(`INSERT INTO webhook_deliveries
+        (id, webhook_id, event_type, payload_json, status_code, response, duration_ms, success, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(
+        delivery.id,
+        delivery.webhookId,
+        delivery.eventType,
+        JSON.stringify(delivery.payload),
+        delivery.statusCode,
+        delivery.response,
+        delivery.durationMs,
+        delivery.success ? 1 : 0,
+        delivery.createdAt
+      );
+
+    return delivery;
+  }
+
+  /** List webhook deliveries */
+  listWebhookDeliveries(webhookId: string, limit: number = 50): WebhookDelivery[] {
+    const rows = this.db
+      .prepare(`SELECT * FROM webhook_deliveries
+        WHERE webhook_id = ?
+        ORDER BY created_at DESC
+        LIMIT ?`)
+      .all(webhookId, limit) as Array<{
+        id: string;
+        webhook_id: string;
+        event_type: string;
+        payload_json: string;
+        status_code: number | null;
+        response: string | null;
+        duration_ms: number | null;
+        success: number;
+        created_at: number;
+      }>;
+
+    return rows.map(r => ({
+      id: r.id,
+      webhookId: r.webhook_id,
+      eventType: r.event_type as WebhookEventType,
+      payload: JSON.parse(r.payload_json),
+      statusCode: r.status_code ?? undefined,
+      response: r.response ?? undefined,
+      durationMs: r.duration_ms ?? undefined,
+      success: !!r.success,
+      createdAt: r.created_at
+    }));
   }
 }

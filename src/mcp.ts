@@ -73,6 +73,12 @@ const ClaimReleaseInput = z.object({
   files: z.array(z.string().min(1)).min(1).max(200).optional().describe('Files to release (all if omitted)')
 });
 
+const ClaimExtendInput = z.object({
+  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
+  files: z.array(z.string().min(1)).min(1).max(200).optional().describe('Specific files to extend (all if omitted)'),
+  additionalSeconds: z.number().int().min(30).max(3600).default(300).optional().describe('Additional seconds to add (default 300)')
+});
+
 const EvidenceAttachInput = z.object({
   taskId: z.string().min(4).describe('Task ID'),
   agentId: z.string().min(1).max(120).describe('Your agent identifier'),
@@ -213,6 +219,123 @@ const TaskMetricsInput = z.object({
   taskId: z.string().min(4).describe('Task ID')
 });
 
+// ==================== AGENT REGISTRY ====================
+
+const AgentRegisterInput = z.object({
+  agentId: z.string().min(1).max(120).describe('Your unique agent identifier'),
+  capabilities: z.array(z.string()).min(1).max(20).describe('List of capabilities (e.g., ["code_review", "testing"])'),
+  metadata: z.record(z.unknown()).optional().describe('Optional metadata (e.g., {"model": "claude-opus"})')
+});
+
+const AgentHeartbeatInput = z.object({
+  agentId: z.string().min(1).max(120).describe('Your agent identifier')
+});
+
+// ==================== DEAD WORK DETECTION ====================
+
+const DeadWorkInput = z.object({
+  staleDays: z.number().min(0.5).max(30).optional().describe('Days threshold for staleness (default 1)')
+});
+
+// ==================== APPROVAL GATES ====================
+
+const GateTypeSchema = z.enum(['lint', 'test', 'build', 'review', 'custom']);
+
+const GateDefineInput = z.object({
+  taskId: z.string().min(4).describe('Task ID to attach gate to'),
+  gateType: GateTypeSchema.describe('Type of gate'),
+  command: z.string().min(1).max(2000).describe('Command to run (e.g., "npm run lint")'),
+  triggerStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).describe('Status that triggers this gate'),
+  required: z.boolean().optional().describe('Must pass to transition (default true)')
+});
+
+const GateListInput = z.object({
+  taskId: z.string().min(4).describe('Task ID')
+});
+
+const GateRunInput = z.object({
+  gateId: z.string().min(4).describe('Gate ID'),
+  taskId: z.string().min(4).describe('Task ID'),
+  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
+  passed: z.boolean().describe('Whether the gate passed'),
+  output: z.string().max(500000).optional().describe('Command output'),
+  durationMs: z.number().optional().describe('Execution time in ms')
+});
+
+const GateStatusInput = z.object({
+  taskId: z.string().min(4).describe('Task ID'),
+  forStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).describe('Status to check gates for')
+});
+
+// ==================== TASK TEMPLATES ====================
+
+const TemplateCreateInput = z.object({
+  name: z.string().min(1).max(100).describe('Unique template name'),
+  titlePattern: z.string().min(1).max(200).describe('Title pattern with {{placeholders}}'),
+  descriptionTemplate: z.string().max(5000).optional().describe('Description template with {{placeholders}}'),
+  defaultStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).optional().describe('Default status'),
+  defaultPriority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('Default priority'),
+  defaultLabels: z.array(z.string()).optional().describe('Default labels'),
+  defaultStoryPoints: z.number().int().min(1).max(21).optional().describe('Default story points'),
+  gates: z.array(z.object({
+    gateType: GateTypeSchema,
+    command: z.string(),
+    triggerStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done'])
+  })).optional().describe('Pre-configured gates'),
+  checklist: z.array(z.string()).optional().describe('Acceptance checklist items')
+});
+
+const TemplateGetInput = z.object({
+  nameOrId: z.string().min(1).describe('Template name or ID')
+});
+
+const TaskFromTemplateInput = z.object({
+  template: z.string().min(1).describe('Template name or ID'),
+  variables: z.record(z.string()).describe('Variable substitutions (e.g., {"issue": "Bug in login"})'),
+  overrides: z.object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']).optional(),
+    priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
+    assignedAgent: z.string().optional(),
+    labels: z.array(z.string()).optional(),
+    storyPoints: z.number().optional()
+  }).optional().describe('Override template defaults')
+});
+
+// ==================== WEBHOOKS ====================
+
+const WebhookEventTypeSchema = z.enum([
+  'task.created', 'task.updated', 'task.completed',
+  'intent.posted', 'claim.created', 'claim.conflict', 'claim.released',
+  'evidence.attached', 'gate.passed', 'gate.failed'
+]);
+
+const WebhookRegisterInput = z.object({
+  name: z.string().min(1).max(100).describe('Webhook name'),
+  url: z.string().url().describe('Webhook URL'),
+  events: z.array(WebhookEventTypeSchema).min(1).describe('Events to subscribe to'),
+  headers: z.record(z.string()).optional().describe('Custom headers'),
+  secret: z.string().optional().describe('Secret for HMAC signing')
+});
+
+const WebhookUpdateInput = z.object({
+  webhookId: z.string().min(4).describe('Webhook ID'),
+  url: z.string().url().optional().describe('New URL'),
+  events: z.array(WebhookEventTypeSchema).optional().describe('New events'),
+  headers: z.record(z.string()).optional().describe('New headers'),
+  enabled: z.boolean().optional().describe('Enable/disable webhook')
+});
+
+const WebhookDeleteInput = z.object({
+  webhookId: z.string().min(4).describe('Webhook ID to delete')
+});
+
+const WebhookDeliveriesInput = z.object({
+  webhookId: z.string().min(4).describe('Webhook ID'),
+  limit: z.number().int().min(1).max(100).optional().describe('Max deliveries (default 50)')
+});
+
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -330,6 +453,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           type: 'object',
           properties: {},
           required: []
+        }
+      },
+      {
+        name: 'scrum_claim_extend',
+        description: 'Extend the TTL of your active claims without releasing them. Use this when you need more time to complete work and don\'t want to release and re-claim (which would require re-attaching evidence).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Your agent identifier' },
+            files: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Specific files to extend (omit to extend all your claims)'
+            },
+            additionalSeconds: { type: 'number', description: 'Additional seconds to add (30-3600, default 300)' }
+          },
+          required: ['agentId']
         }
       },
       {
@@ -636,6 +776,274 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['taskId']
         }
+      },
+      // ==================== AGENT REGISTRY ====================
+      {
+        name: 'scrum_agent_register',
+        description: 'Register your agent with SCRUM for observability and coordination. Call this at the start of a session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Your unique agent identifier (e.g., "claude-code-a1b2c3")' },
+            capabilities: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Your capabilities (e.g., ["code_review", "testing", "debugging"])'
+            },
+            metadata: {
+              type: 'object',
+              description: 'Optional metadata (e.g., {"model": "claude-opus", "session": "xyz"})'
+            }
+          },
+          required: ['agentId', 'capabilities']
+        }
+      },
+      {
+        name: 'scrum_agents_list',
+        description: 'List all registered agents and their status. Shows who is active, idle, or offline.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            includeOffline: { type: 'boolean', description: 'Include offline agents (default false)' }
+          },
+          required: []
+        }
+      },
+      {
+        name: 'scrum_agent_heartbeat',
+        description: 'Send a heartbeat to indicate your agent is still active. Agents are marked offline after 5 minutes without heartbeat.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Your agent identifier' }
+          },
+          required: ['agentId']
+        }
+      },
+      // ==================== DEAD WORK DETECTION ====================
+      {
+        name: 'scrum_dead_work',
+        description: 'Find tasks that are in_progress but appear abandoned (no active claims, no recent activity). Use this to identify stale work that needs attention.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            staleDays: { type: 'number', description: 'Days threshold for staleness (default 1)' }
+          },
+          required: []
+        }
+      },
+      // ==================== APPROVAL GATES ====================
+      {
+        name: 'scrum_gate_define',
+        description: 'Define an approval gate for a task. Gates run commands (lint, test, build) that must pass before status transitions.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID to attach gate to' },
+            gateType: { type: 'string', enum: ['lint', 'test', 'build', 'review', 'custom'], description: 'Type of gate' },
+            command: { type: 'string', description: 'Command to run (e.g., "npm run lint")' },
+            triggerStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Status that triggers this gate' },
+            required: { type: 'boolean', description: 'Must pass to transition (default true)' }
+          },
+          required: ['taskId', 'gateType', 'command', 'triggerStatus']
+        }
+      },
+      {
+        name: 'scrum_gates_list',
+        description: 'List all gates defined for a task.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID' }
+          },
+          required: ['taskId']
+        }
+      },
+      {
+        name: 'scrum_gate_run',
+        description: 'Record a gate run result. Call this after running the gate command to record whether it passed or failed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            gateId: { type: 'string', description: 'Gate ID' },
+            taskId: { type: 'string', description: 'Task ID' },
+            agentId: { type: 'string', description: 'Your agent identifier' },
+            passed: { type: 'boolean', description: 'Whether the gate passed' },
+            output: { type: 'string', description: 'Command output' },
+            durationMs: { type: 'number', description: 'Execution time in ms' }
+          },
+          required: ['gateId', 'taskId', 'agentId', 'passed']
+        }
+      },
+      {
+        name: 'scrum_gate_status',
+        description: 'Get gate status for a task. Shows which gates have passed/failed for a specific status transition.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID' },
+            forStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Status to check gates for' }
+          },
+          required: ['taskId', 'forStatus']
+        }
+      },
+      // ==================== TASK TEMPLATES ====================
+      {
+        name: 'scrum_template_create',
+        description: 'Create a reusable task template with pre-configured settings, gates, and checklists. Use {{placeholders}} in title and description.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Unique template name' },
+            titlePattern: { type: 'string', description: 'Title pattern with {{placeholders}}' },
+            descriptionTemplate: { type: 'string', description: 'Description template with {{placeholders}}' },
+            defaultStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Default status' },
+            defaultPriority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'], description: 'Default priority' },
+            defaultLabels: { type: 'array', items: { type: 'string' }, description: 'Default labels' },
+            defaultStoryPoints: { type: 'number', description: 'Default story points' },
+            gates: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  gateType: { type: 'string', enum: ['lint', 'test', 'build', 'review', 'custom'] },
+                  command: { type: 'string' },
+                  triggerStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'] }
+                }
+              },
+              description: 'Pre-configured gates'
+            },
+            checklist: { type: 'array', items: { type: 'string' }, description: 'Acceptance checklist items' }
+          },
+          required: ['name', 'titlePattern']
+        }
+      },
+      {
+        name: 'scrum_template_get',
+        description: 'Get a task template by name or ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nameOrId: { type: 'string', description: 'Template name or ID' }
+          },
+          required: ['nameOrId']
+        }
+      },
+      {
+        name: 'scrum_templates_list',
+        description: 'List all available task templates.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: []
+        }
+      },
+      {
+        name: 'scrum_task_from_template',
+        description: 'Create a new task from a template. Variables are substituted into {{placeholders}} in the title and description.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            template: { type: 'string', description: 'Template name or ID' },
+            variables: {
+              type: 'object',
+              description: 'Variable substitutions (e.g., {"issue": "Bug in login"})'
+            },
+            overrides: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled'] },
+                priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
+                assignedAgent: { type: 'string' },
+                labels: { type: 'array', items: { type: 'string' } },
+                storyPoints: { type: 'number' }
+              },
+              description: 'Override template defaults'
+            }
+          },
+          required: ['template', 'variables']
+        }
+      },
+      // ==================== WEBHOOKS ====================
+      {
+        name: 'scrum_webhook_register',
+        description: 'Register an outbound webhook to receive event notifications. Events are POSTed to the URL with HMAC signature if secret is provided.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Webhook name' },
+            url: { type: 'string', description: 'Webhook URL' },
+            events: {
+              type: 'array',
+              items: {
+                type: 'string',
+                enum: ['task.created', 'task.updated', 'task.completed', 'intent.posted', 'claim.created', 'claim.conflict', 'claim.released', 'evidence.attached', 'gate.passed', 'gate.failed']
+              },
+              description: 'Events to subscribe to'
+            },
+            headers: { type: 'object', description: 'Custom headers' },
+            secret: { type: 'string', description: 'Secret for HMAC signing' }
+          },
+          required: ['name', 'url', 'events']
+        }
+      },
+      {
+        name: 'scrum_webhooks_list',
+        description: 'List all registered webhooks.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            enabledOnly: { type: 'boolean', description: 'Only show enabled webhooks' }
+          },
+          required: []
+        }
+      },
+      {
+        name: 'scrum_webhook_update',
+        description: 'Update a webhook (URL, events, enabled status).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhookId: { type: 'string', description: 'Webhook ID' },
+            url: { type: 'string', description: 'New URL' },
+            events: {
+              type: 'array',
+              items: {
+                type: 'string',
+                enum: ['task.created', 'task.updated', 'task.completed', 'intent.posted', 'claim.created', 'claim.conflict', 'claim.released', 'evidence.attached', 'gate.passed', 'gate.failed']
+              },
+              description: 'New events'
+            },
+            headers: { type: 'object', description: 'New headers' },
+            enabled: { type: 'boolean', description: 'Enable/disable webhook' }
+          },
+          required: ['webhookId']
+        }
+      },
+      {
+        name: 'scrum_webhook_delete',
+        description: 'Delete a webhook.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhookId: { type: 'string', description: 'Webhook ID to delete' }
+          },
+          required: ['webhookId']
+        }
+      },
+      {
+        name: 'scrum_webhook_deliveries',
+        description: 'Get recent delivery history for a webhook. Use this to debug webhook issues.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            webhookId: { type: 'string', description: 'Webhook ID' },
+            limit: { type: 'number', description: 'Max deliveries (default 50)' }
+          },
+          required: ['webhookId']
+        }
       }
     ]
   };
@@ -815,6 +1223,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const claims = state.listActiveClaims();
         return {
           content: [{ type: 'text', text: JSON.stringify(claims, null, 2) }]
+        };
+      }
+
+      case 'scrum_claim_extend': {
+        const input = ClaimExtendInput.parse(args);
+        const result = state.extendClaims(input.agentId, input.additionalSeconds ?? 300, input.files);
+        if (result.extended === 0) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'no_claims',
+                message: 'No active claims found for this agent'
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              extended: result.extended,
+              newExpiresAt: result.newExpiresAt,
+              expiresIn: Math.round((result.newExpiresAt - Date.now()) / 1000) + ' seconds'
+            }, null, 2)
+          }]
         };
       }
 
@@ -1294,6 +1730,363 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               }, null, 2)
             }
           ]
+        };
+      }
+
+      // ==================== AGENT REGISTRY ====================
+
+      case 'scrum_agent_register': {
+        const input = AgentRegisterInput.parse(args);
+        const agent = state.registerAgent(input);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'registered',
+              agent,
+              message: `Agent ${input.agentId} registered with ${input.capabilities.length} capabilities`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_agents_list': {
+        const input = z.object({
+          includeOffline: z.boolean().optional()
+        }).parse(args ?? {});
+        const agents = state.listAgents({ includeOffline: input.includeOffline });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              count: agents.length,
+              agents,
+              message: agents.length > 0
+                ? `${agents.length} agent(s) registered`
+                : 'No agents registered'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_agent_heartbeat': {
+        const input = AgentHeartbeatInput.parse(args);
+        const success = state.agentHeartbeat(input.agentId);
+        if (!success) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'not_found',
+                message: `Agent ${input.agentId} not found. Register first with scrum_agent_register.`
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              agentId: input.agentId,
+              message: 'Heartbeat received'
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== DEAD WORK DETECTION ====================
+
+      case 'scrum_dead_work': {
+        const input = DeadWorkInput.parse(args ?? {});
+        const deadWork = state.findDeadWork({ staleDays: input.staleDays });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              staleDays: input.staleDays ?? 1,
+              count: deadWork.length,
+              tasks: deadWork,
+              message: deadWork.length > 0
+                ? `Found ${deadWork.length} potentially abandoned task(s)`
+                : 'No dead work detected'
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== APPROVAL GATES ====================
+
+      case 'scrum_gate_define': {
+        const input = GateDefineInput.parse(args);
+        try {
+          const gate = state.defineGate(input);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'ok',
+                gate,
+                message: `Gate "${input.gateType}" defined for status "${input.triggerStatus}"`
+              }, null, 2)
+            }]
+          };
+        } catch (e: any) {
+          if (e?.message?.includes('Unknown taskId')) {
+            return {
+              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+              isError: true
+            };
+          }
+          throw e;
+        }
+      }
+
+      case 'scrum_gates_list': {
+        const input = GateListInput.parse(args);
+        const gates = state.listGates(input.taskId);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              taskId: input.taskId,
+              count: gates.length,
+              gates
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_gate_run': {
+        const input = GateRunInput.parse(args);
+        try {
+          const run = state.recordGateRun(input);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: input.passed ? 'passed' : 'failed',
+                run,
+                message: `Gate ${input.passed ? 'passed' : 'failed'}`
+              }, null, 2)
+            }]
+          };
+        } catch (e: any) {
+          if (e?.message?.includes('Unknown gateId')) {
+            return {
+              content: [{ type: 'text', text: `Gate not found: ${input.gateId}` }],
+              isError: true
+            };
+          }
+          throw e;
+        }
+      }
+
+      case 'scrum_gate_status': {
+        const input = GateStatusInput.parse(args);
+        const gateStatus = state.getGateStatus(input.taskId, input.forStatus);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              taskId: input.taskId,
+              forStatus: input.forStatus,
+              allPassed: gateStatus.allPassed,
+              gateCount: gateStatus.gates.length,
+              gates: gateStatus.gates,
+              blockedBy: gateStatus.blockedBy,
+              message: gateStatus.allPassed
+                ? `All ${gateStatus.gates.length} gate(s) passed for "${input.forStatus}"`
+                : `Blocked by ${gateStatus.blockedBy.length} gate(s)`
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== TASK TEMPLATES ====================
+
+      case 'scrum_template_create': {
+        const input = TemplateCreateInput.parse(args);
+        try {
+          const template = state.createTemplate(input);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'ok',
+                template,
+                message: `Template "${input.name}" created`
+              }, null, 2)
+            }]
+          };
+        } catch (e: any) {
+          if (e?.message?.includes('already exists')) {
+            return {
+              content: [{ type: 'text', text: `Template "${input.name}" already exists` }],
+              isError: true
+            };
+          }
+          throw e;
+        }
+      }
+
+      case 'scrum_template_get': {
+        const input = TemplateGetInput.parse(args);
+        const template = state.getTemplate(input.nameOrId);
+        if (!template) {
+          return {
+            content: [{ type: 'text', text: `Template not found: ${input.nameOrId}` }],
+            isError: true
+          };
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ template }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_templates_list': {
+        const templates = state.listTemplates();
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              count: templates.length,
+              templates
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_task_from_template': {
+        const input = TaskFromTemplateInput.parse(args);
+        // Verify template exists first
+        const template = state.getTemplate(input.template);
+        if (!template) {
+          return {
+            content: [{ type: 'text', text: `Template not found: ${input.template}` }],
+            isError: true
+          };
+        }
+        const task = state.createTaskFromTemplate(input.template, input.variables, input.overrides);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              task,
+              fromTemplate: template.name,
+              message: `Task created from template "${template.name}"`
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== WEBHOOKS ====================
+
+      case 'scrum_webhook_register': {
+        const input = WebhookRegisterInput.parse(args);
+        const webhook = state.registerWebhook(input);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              webhook,
+              message: `Webhook "${input.name}" registered for ${input.events.length} event(s)`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_webhooks_list': {
+        const input = z.object({
+          enabledOnly: z.boolean().optional()
+        }).parse(args ?? {});
+        const webhooks = state.listWebhooks({ enabledOnly: input.enabledOnly });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              count: webhooks.length,
+              webhooks
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_webhook_update': {
+        const input = WebhookUpdateInput.parse(args);
+        try {
+          const webhook = state.updateWebhook(input.webhookId, {
+            url: input.url,
+            events: input.events,
+            headers: input.headers,
+            enabled: input.enabled
+          });
+          if (!webhook) {
+            return {
+              content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
+              isError: true
+            };
+          }
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'ok',
+                webhook,
+                message: `Webhook "${webhook.name}" updated`
+              }, null, 2)
+            }]
+          };
+        } catch (e: any) {
+          if (e?.message?.includes('Unknown webhookId')) {
+            return {
+              content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
+              isError: true
+            };
+          }
+          throw e;
+        }
+      }
+
+      case 'scrum_webhook_delete': {
+        const input = WebhookDeleteInput.parse(args);
+        const deleted = state.deleteWebhook(input.webhookId);
+        if (!deleted) {
+          return {
+            content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
+            isError: true
+          };
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              deleted: true,
+              webhookId: input.webhookId
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_webhook_deliveries': {
+        const input = WebhookDeliveriesInput.parse(args);
+        const deliveries = state.listWebhookDeliveries(input.webhookId, input.limit ?? 50);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              webhookId: input.webhookId,
+              count: deliveries.length,
+              deliveries
+            }, null, 2)
+          }]
         };
       }
 
