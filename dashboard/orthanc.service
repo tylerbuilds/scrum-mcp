@@ -1,0 +1,33 @@
+[Unit]
+Description=Orthanc - SCRUM Multi-Agent Coordination Dashboard
+Documentation=https://github.com/tylerbuilds/scrum-mcp
+After=network.target scrum-api.service
+Requires=scrum-api.service
+
+[Service]
+Type=simple
+User=boski
+Group=boski
+WorkingDirectory=/mnt/data/projects/scrum-mcp
+ExecStart=/home/linuxbrew/.linuxbrew/bin/node /mnt/data/projects/scrum-mcp/dashboard/server.cjs
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=orthanc
+
+# Environment
+Environment=NODE_ENV=production
+Environment=DASHBOARD_PORT=4398
+Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/boski
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+ReadWritePaths=/mnt/data/projects/scrum-mcp
+
+[Install]
+WantedBy=multi-user.target

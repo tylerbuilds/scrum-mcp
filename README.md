@@ -44,9 +44,50 @@ Default endpoints:
 - WebSocket: `ws://localhost:4177/ws`
 - Dashboard: `http://localhost:5174` (see Frontend section)
 
-## Frontend Dashboard
+## Orthanc Dashboard (Lightweight)
 
-SCRUM includes a web dashboard to visualise agent activity in real-time.
+Orthanc is a zero-dependency dashboard for monitoring agent coordination. Runs on port 4398.
+
+```bash
+npm run dashboard
+# Opens http://localhost:4398
+```
+
+Features:
+- **Live feed** with 5-second auto-refresh
+- **Searchable** across tasks, agents, claims, changelog
+- **Views**: Feed, Kanban, Agents, Claims, Changelog, Metrics
+- **Low resource** - vanilla HTML/JS, no build step
+
+### Autostart on Boot (Linux systemd)
+
+```bash
+# Install both services (API + Dashboard)
+sudo cp dashboard/scrum-api.service /etc/systemd/system/
+sudo cp dashboard/orthanc.service /etc/systemd/system/
+sudo systemctl daemon-reload
+
+# Enable autostart on boot
+sudo systemctl enable scrum-api orthanc
+
+# Start now
+sudo systemctl start scrum-api orthanc
+
+# Check status
+systemctl status scrum-api orthanc
+
+# View logs
+journalctl -u scrum-api -f
+journalctl -u orthanc -f
+```
+
+The services run on:
+- **SCRUM API**: http://localhost:4177
+- **Orthanc Dashboard**: http://localhost:4398
+
+## Frontend Dashboard (Full React)
+
+SCRUM also includes a full React dashboard with more features.
 
 ```bash
 # Terminal 1: Start the backend
@@ -226,6 +267,41 @@ cp templates/.mcp.json.template /your/project/.mcp.json
 | `scrum_aging_wip` | Find tasks stuck in progress too long |
 | `scrum_task_metrics` | Metrics for a specific task |
 
+**Approval Gates** (v0.3.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_gate_define` | Define lint/test/build/review gate for a task |
+| `scrum_gates_list` | List gates for a task |
+| `scrum_gate_run` | Record gate execution result |
+| `scrum_gate_status` | Check if all gates pass for status transition |
+
+**Task Templates** (v0.3.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_template_create` | Create reusable task template with placeholders |
+| `scrum_templates_list` | List available templates |
+| `scrum_template_use` | Create task from template with variables |
+
+**Webhooks** (v0.3.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_webhook_register` | Register webhook for event notifications |
+| `scrum_webhooks_list` | List registered webhooks |
+| `scrum_webhook_update` | Update webhook (enable/disable, change events) |
+| `scrum_webhook_delete` | Delete a webhook |
+
+**Agent Registry** (v0.3.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_agent_register` | Register agent with capabilities and metadata |
+| `scrum_agent_heartbeat` | Send heartbeat to maintain online status |
+| `scrum_agents_list` | List registered agents with status |
+| `scrum_dead_work` | Find abandoned tasks and stale claims |
+
 See [docs/MCP.md](docs/MCP.md) for detailed tool documentation.
 
 ## Enforced Workflow
@@ -273,8 +349,13 @@ The changelog automatically captures:
 1. ~~Add MCP server wrapper so Claude Code, Cursor, OpenCode, Codex, AntiGravity can call `scrum.*` tools.~~ Done!
 2. ~~Add changelog for debugging when issues were introduced.~~ Done!
 3. ~~Add kanban board with status, priority, dependencies, comments, blockers, WIP limits, and metrics.~~ Done!
-4. Add a gate runner that can execute your repo-specific checks and publish receipts.
-5. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
+4. ~~Add approval gates that define validation steps before status transitions.~~ Done! (v0.3.0)
+5. ~~Add task templates with placeholder interpolation.~~ Done! (v0.3.0)
+6. ~~Add webhooks for event notifications.~~ Done! (v0.3.0)
+7. ~~Add agent registry for observability.~~ Done! (v0.3.0)
+8. ~~Add Orthanc dashboard for real-time monitoring.~~ Done! (v0.3.0)
+9. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
+10. Add HMAC signing for webhook payloads.
 
 ## Author
 
