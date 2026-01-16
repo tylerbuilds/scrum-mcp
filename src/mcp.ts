@@ -19,7 +19,6 @@ import {
   TaskListSchema,
   TaskUpdateWithIdSchema,
   BoardInputSchema,
-  TaskReadySchema,
   IntentPostSchema,
   ClaimCreateMcpSchema,
   ClaimReleaseSchema,
@@ -30,45 +29,24 @@ import {
   ChangelogSearchSchema,
   CommentAddSchema,
   CommentsListMcpSchema,
-  BlockerAddSchema,
-  BlockerResolveSchema,
-  BlockersListMcpSchema,
-  DependencyAddSchema,
-  DependencyRemoveSchema,
-  DependenciesGetSchema,
-  WipLimitsSetMcpSchema,
-  MetricsMcpSchema,
-  VelocityMcpSchema,
-  AgingWipMcpSchema,
-  TaskMetricsSchema,
-  AgentRegisterSchema,
-  AgentHeartbeatSchema,
-  AgentsListMcpSchema,
-  DeadWorkMcpSchema,
-  GateDefineSchema,
-  GateListSchema,
-  GateRunSchema,
-  GateStatusSchema,
-  TemplateCreateSchema,
-  TemplateGetSchema,
-  TaskFromTemplateSchema,
-  WebhookRegisterSchema,
-  WebhookUpdateSchema,
-  WebhookDeleteSchema,
-  WebhookDeliveriesSchema,
-  WebhooksListMcpSchema,
   ComplianceCheckSchema,
+  DeadWorkMcpSchema,
+  // Consolidated schemas (v0.6.0)
+  BlockerActionSchema,
+  DependencyActionSchema,
+  MetricsUnifiedSchema,
+  SprintGetUnifiedSchema,
+  SprintContextUnifiedSchema,
+  StatusSchema,
+  // Sprint schemas (kept for non-consolidated tools)
   SprintCreateSchema,
   SprintGetSchema,
-  SprintForTaskSchema,
   SprintListSchema,
   SprintJoinSchema,
   SprintLeaveSchema,
   SprintMembersSchema,
   SprintShareSchema,
-  SprintSharesSchema,
-  SprintContextSchema,
-  SprintCheckSchema
+  SprintSharesSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -150,10 +128,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'scrum_status',
         description:
-          'Get SCRUM server status including counts of tasks, intents, claims, and evidence. Use this to see the current state of the coordination layer.',
+          'Get SCRUM server status and available tools. Use profile to filter: solo (12 core tools), team (+ collaboration), full (all tools). Default shows all.',
         inputSchema: {
           type: 'object',
-          properties: {},
+          properties: {
+            profile: { type: 'string', enum: ['solo', 'team', 'full'], description: 'Tool profile: solo (core), team (+ collab), full (all)' }
+          },
           required: []
         }
       },
@@ -423,433 +403,67 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['taskId']
         }
       },
+      // ==================== BLOCKERS (Consolidated) ====================
       {
-        name: 'scrum_blocker_add',
-        description: 'Add a blocker to a task. Blockers indicate why work cannot proceed.',
+        name: 'scrum_blocker',
+        description: 'Manage blockers on tasks. Actions: add (report blocker), resolve (clear blocker), list (view blockers).',
         inputSchema: {
           type: 'object',
           properties: {
-            taskId: { type: 'string', description: 'Task ID that is blocked' },
-            description: { type: 'string', description: 'What is blocking this task' },
-            blockingTaskId: { type: 'string', description: 'Optional: Task ID that is causing the block' },
-            agentId: { type: 'string', description: 'Your agent identifier' }
+            action: { type: 'string', enum: ['add', 'resolve', 'list'], description: 'Action to perform' },
+            taskId: { type: 'string', description: 'Task ID (required for add/list)' },
+            description: { type: 'string', description: 'What is blocking (required for add)' },
+            blockingTaskId: { type: 'string', description: 'Task causing the block (optional for add)' },
+            agentId: { type: 'string', description: 'Your agent ID (required for add)' },
+            blockerId: { type: 'string', description: 'Blocker ID (required for resolve)' },
+            unresolvedOnly: { type: 'boolean', description: 'Only show unresolved (for list)' }
           },
-          required: ['taskId', 'description', 'agentId']
+          required: ['action']
         }
       },
+      // ==================== DEPENDENCIES (Consolidated) ====================
       {
-        name: 'scrum_blocker_resolve',
-        description: 'Mark a blocker as resolved.',
+        name: 'scrum_dependency',
+        description: 'Manage task dependencies. Actions: add (create dependency), remove (delete), get (list dependencies), check (verify task is ready).',
         inputSchema: {
           type: 'object',
           properties: {
-            blockerId: { type: 'string', description: 'Blocker ID to resolve' }
+            action: { type: 'string', enum: ['add', 'remove', 'get', 'check'], description: 'Action to perform' },
+            taskId: { type: 'string', description: 'Task ID (required for add/get/check)' },
+            dependsOnTaskId: { type: 'string', description: 'Task that must complete first (required for add)' },
+            dependencyId: { type: 'string', description: 'Dependency ID (required for remove)' }
           },
-          required: ['blockerId']
+          required: ['action']
         }
       },
-      {
-        name: 'scrum_blockers_list',
-        description: 'List blockers for a task.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' },
-            unresolvedOnly: { type: 'boolean', description: 'Only show unresolved blockers' }
-          },
-          required: ['taskId']
-        }
-      },
-      // ==================== DEPENDENCIES ====================
-      {
-        name: 'scrum_dependency_add',
-        description: 'Add a dependency between tasks. The first task depends on the second (must complete before). Prevents circular dependencies.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task that depends on another' },
-            dependsOnTaskId: { type: 'string', description: 'Task that must complete first' }
-          },
-          required: ['taskId', 'dependsOnTaskId']
-        }
-      },
-      {
-        name: 'scrum_dependency_remove',
-        description: 'Remove a dependency between tasks.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            dependencyId: { type: 'string', description: 'Dependency ID to remove' }
-          },
-          required: ['dependencyId']
-        }
-      },
-      {
-        name: 'scrum_dependencies_get',
-        description: 'Get dependencies for a task. Returns tasks that block this task (blockedBy) and tasks blocked by this task (blocking).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' }
-          },
-          required: ['taskId']
-        }
-      },
-      {
-        name: 'scrum_task_ready',
-        description: 'Check if a task is ready to start (all dependencies are done). Checks transitive dependencies recursively.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID to check' }
-          },
-          required: ['taskId']
-        }
-      },
-      // ==================== WIP LIMITS ====================
-      {
-        name: 'scrum_wip_limits_get',
-        description: 'Get current WIP (Work In Progress) limits for all columns.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          required: []
-        }
-      },
-      {
-        name: 'scrum_wip_limits_set',
-        description: 'Set WIP limit for a status column. Pass null to remove limit. WIP limits help prevent overloading columns.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Column to set limit for' },
-            limit: { type: 'number', description: 'Max tasks allowed (null to remove limit)' }
-          },
-          required: ['status']
-        }
-      },
-      {
-        name: 'scrum_wip_status',
-        description: 'Get current WIP status showing task count vs limit for each column. Shows which columns are at or over their limits.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          required: []
-        }
-      },
-      // ==================== METRICS ====================
+      // ==================== METRICS (Consolidated) ====================
       {
         name: 'scrum_metrics',
-        description: 'Get board-level metrics including cycle time, lead time, throughput, and velocity. Returns aggregate stats for completed tasks in the specified period.',
+        description: 'Get metrics. Types: board (cycle/lead time, throughput), velocity (story points over time), aging (stuck tasks), task (single task metrics).',
         inputSchema: {
           type: 'object',
           properties: {
-            since: { type: 'number', description: 'Start timestamp (ms), default 30 days ago' },
-            until: { type: 'number', description: 'End timestamp (ms), default now' }
+            type: { type: 'string', enum: ['board', 'velocity', 'aging', 'task'], description: 'Metric type (default: board)' },
+            since: { type: 'number', description: 'Start timestamp for board metrics' },
+            until: { type: 'number', description: 'End timestamp for board metrics' },
+            periodDays: { type: 'number', description: 'Days per period for velocity (default 7)' },
+            periods: { type: 'number', description: 'Number of periods for velocity (default 4)' },
+            thresholdDays: { type: 'number', description: 'Days threshold for aging (default 2)' },
+            taskId: { type: 'string', description: 'Task ID (required for type=task)' }
           },
           required: []
-        }
-      },
-      {
-        name: 'scrum_velocity',
-        description: 'Get velocity (story points completed) over time periods. Returns an array of periods with completed task counts and story points.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            periodDays: { type: 'number', description: 'Days per period (default 7)' },
-            periods: { type: 'number', description: 'Number of periods (default 4)' }
-          },
-          required: []
-        }
-      },
-      {
-        name: 'scrum_aging_wip',
-        description: 'Get tasks that have been in progress for too long. Helps identify stuck work that needs attention.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            thresholdDays: { type: 'number', description: 'Days threshold (default 2)' }
-          },
-          required: []
-        }
-      },
-      {
-        name: 'scrum_task_metrics',
-        description: 'Get metrics for a specific task including lead time (creation to completion) and cycle time (started to completion).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' }
-          },
-          required: ['taskId']
-        }
-      },
-      // ==================== AGENT REGISTRY ====================
-      {
-        name: 'scrum_agent_register',
-        description: 'Register your agent with SCRUM for observability and coordination. Call this at the start of a session.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            agentId: { type: 'string', description: 'Your unique agent identifier (e.g., "claude-code-a1b2c3")' },
-            capabilities: {
-              type: 'array',
-              items: { type: 'string' },
-              description: 'Your capabilities (e.g., ["code_review", "testing", "debugging"])'
-            },
-            metadata: {
-              type: 'object',
-              description: 'Optional metadata (e.g., {"model": "claude-opus", "session": "xyz"})'
-            }
-          },
-          required: ['agentId', 'capabilities']
-        }
-      },
-      {
-        name: 'scrum_agents_list',
-        description: 'List all registered agents and their status. Shows who is active, idle, or offline.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            includeOffline: { type: 'boolean', description: 'Include offline agents (default false)' }
-          },
-          required: []
-        }
-      },
-      {
-        name: 'scrum_agent_heartbeat',
-        description: 'Send a heartbeat to indicate your agent is still active. Agents are marked offline after 5 minutes without heartbeat.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            agentId: { type: 'string', description: 'Your agent identifier' }
-          },
-          required: ['agentId']
         }
       },
       // ==================== DEAD WORK DETECTION ====================
       {
         name: 'scrum_dead_work',
-        description: 'Find tasks that are in_progress but appear abandoned (no active claims, no recent activity). Use this to identify stale work that needs attention.',
+        description: 'Find potentially abandoned tasks. Tasks claimed but not updated recently may need cleanup or reassignment.',
         inputSchema: {
           type: 'object',
           properties: {
-            staleDays: { type: 'number', description: 'Days threshold for staleness (default 1)' }
+            staleDays: { type: 'number', description: 'Days of inactivity to flag (default 1)' }
           },
           required: []
-        }
-      },
-      // ==================== APPROVAL GATES ====================
-      {
-        name: 'scrum_gate_define',
-        description: 'Define an approval gate for a task. Gates run commands (lint, test, build) that must pass before status transitions.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID to attach gate to' },
-            gateType: { type: 'string', enum: ['lint', 'test', 'build', 'review', 'custom'], description: 'Type of gate' },
-            command: { type: 'string', description: 'Command to run (e.g., "npm run lint")' },
-            triggerStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Status that triggers this gate' },
-            required: { type: 'boolean', description: 'Must pass to transition (default true)' }
-          },
-          required: ['taskId', 'gateType', 'command', 'triggerStatus']
-        }
-      },
-      {
-        name: 'scrum_gates_list',
-        description: 'List all gates defined for a task.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' }
-          },
-          required: ['taskId']
-        }
-      },
-      {
-        name: 'scrum_gate_run',
-        description: 'Record a gate run result. Call this after running the gate command to record whether it passed or failed.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            gateId: { type: 'string', description: 'Gate ID' },
-            taskId: { type: 'string', description: 'Task ID' },
-            agentId: { type: 'string', description: 'Your agent identifier' },
-            passed: { type: 'boolean', description: 'Whether the gate passed' },
-            output: { type: 'string', description: 'Command output' },
-            durationMs: { type: 'number', description: 'Execution time in ms' }
-          },
-          required: ['gateId', 'taskId', 'agentId', 'passed']
-        }
-      },
-      {
-        name: 'scrum_gate_status',
-        description: 'Get gate status for a task. Shows which gates have passed/failed for a specific status transition.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' },
-            forStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Status to check gates for' }
-          },
-          required: ['taskId', 'forStatus']
-        }
-      },
-      // ==================== TASK TEMPLATES ====================
-      {
-        name: 'scrum_template_create',
-        description: 'Create a reusable task template with pre-configured settings, gates, and checklists. Use {{placeholders}} in title and description.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'Unique template name' },
-            titlePattern: { type: 'string', description: 'Title pattern with {{placeholders}}' },
-            descriptionTemplate: { type: 'string', description: 'Description template with {{placeholders}}' },
-            defaultStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'], description: 'Default status' },
-            defaultPriority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'], description: 'Default priority' },
-            defaultLabels: { type: 'array', items: { type: 'string' }, description: 'Default labels' },
-            defaultStoryPoints: { type: 'number', description: 'Default story points' },
-            gates: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  gateType: { type: 'string', enum: ['lint', 'test', 'build', 'review', 'custom'] },
-                  command: { type: 'string' },
-                  triggerStatus: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done'] }
-                }
-              },
-              description: 'Pre-configured gates'
-            },
-            checklist: { type: 'array', items: { type: 'string' }, description: 'Acceptance checklist items' }
-          },
-          required: ['name', 'titlePattern']
-        }
-      },
-      {
-        name: 'scrum_template_get',
-        description: 'Get a task template by name or ID.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            nameOrId: { type: 'string', description: 'Template name or ID' }
-          },
-          required: ['nameOrId']
-        }
-      },
-      {
-        name: 'scrum_templates_list',
-        description: 'List all available task templates.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          required: []
-        }
-      },
-      {
-        name: 'scrum_task_from_template',
-        description: 'Create a new task from a template. Variables are substituted into {{placeholders}} in the title and description.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            template: { type: 'string', description: 'Template name or ID' },
-            variables: {
-              type: 'object',
-              description: 'Variable substitutions (e.g., {"issue": "Bug in login"})'
-            },
-            overrides: {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                description: { type: 'string' },
-                status: { type: 'string', enum: ['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled'] },
-                priority: { type: 'string', enum: ['critical', 'high', 'medium', 'low'] },
-                assignedAgent: { type: 'string' },
-                labels: { type: 'array', items: { type: 'string' } },
-                storyPoints: { type: 'number' }
-              },
-              description: 'Override template defaults'
-            }
-          },
-          required: ['template', 'variables']
-        }
-      },
-      // ==================== WEBHOOKS ====================
-      {
-        name: 'scrum_webhook_register',
-        description: 'Register an outbound webhook to receive event notifications. Events are POSTed to the URL with HMAC signature if secret is provided.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'Webhook name' },
-            url: { type: 'string', description: 'Webhook URL' },
-            events: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['task.created', 'task.updated', 'task.completed', 'intent.posted', 'claim.created', 'claim.conflict', 'claim.released', 'evidence.attached', 'gate.passed', 'gate.failed']
-              },
-              description: 'Events to subscribe to'
-            },
-            headers: { type: 'object', description: 'Custom headers' },
-            secret: { type: 'string', description: 'Secret for HMAC signing' }
-          },
-          required: ['name', 'url', 'events']
-        }
-      },
-      {
-        name: 'scrum_webhooks_list',
-        description: 'List all registered webhooks.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            enabledOnly: { type: 'boolean', description: 'Only show enabled webhooks' }
-          },
-          required: []
-        }
-      },
-      {
-        name: 'scrum_webhook_update',
-        description: 'Update a webhook (URL, events, enabled status).',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            webhookId: { type: 'string', description: 'Webhook ID' },
-            url: { type: 'string', description: 'New URL' },
-            events: {
-              type: 'array',
-              items: {
-                type: 'string',
-                enum: ['task.created', 'task.updated', 'task.completed', 'intent.posted', 'claim.created', 'claim.conflict', 'claim.released', 'evidence.attached', 'gate.passed', 'gate.failed']
-              },
-              description: 'New events'
-            },
-            headers: { type: 'object', description: 'New headers' },
-            enabled: { type: 'boolean', description: 'Enable/disable webhook' }
-          },
-          required: ['webhookId']
-        }
-      },
-      {
-        name: 'scrum_webhook_delete',
-        description: 'Delete a webhook.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            webhookId: { type: 'string', description: 'Webhook ID to delete' }
-          },
-          required: ['webhookId']
-        }
-      },
-      {
-        name: 'scrum_webhook_deliveries',
-        description: 'Get recent delivery history for a webhook. Use this to debug webhook issues.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            webhookId: { type: 'string', description: 'Webhook ID' },
-            limit: { type: 'number', description: 'Max deliveries (default 50)' }
-          },
-          required: ['webhookId']
         }
       },
       // ==================== COMPLIANCE ====================
@@ -881,24 +495,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_sprint_get',
-        description: 'Get a sprint by ID.',
+        description: 'Get a sprint by ID or find the active sprint for a task. Provide either sprintId or taskId.',
         inputSchema: {
           type: 'object',
           properties: {
-            sprintId: { type: 'string', description: 'Sprint ID' }
+            sprintId: { type: 'string', description: 'Sprint ID (provide this OR taskId)' },
+            taskId: { type: 'string', description: 'Task ID to find sprint for (provide this OR sprintId)' }
           },
-          required: ['sprintId']
-        }
-      },
-      {
-        name: 'scrum_sprint_for_task',
-        description: 'Get the active sprint for a task, if one exists.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            taskId: { type: 'string', description: 'Task ID' }
-          },
-          required: ['taskId']
+          required: []
         }
       },
       {
@@ -993,26 +597,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_sprint_context',
-        description: 'Get complete sprint context - CALL THIS BEFORE STARTING WORK to understand what the team is doing. Returns: members and their focus, all decisions/interfaces/discoveries, unanswered questions, and files being touched.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            sprintId: { type: 'string', description: 'Sprint ID' }
-          },
-          required: ['sprintId']
-        }
-      },
-      {
-        name: 'scrum_sprint_check',
-        description: 'Check sprint status and get relevant updates for your work. CALL THIS PERIODICALLY during work to stay coordinated. Returns new shares since you last checked, unanswered questions you might help with, and integration points relevant to your focus area.',
+        description: 'Get sprint context. Returns members, decisions, interfaces, discoveries, and unanswered questions. Add agentId to also get updates since your last check and integration points for your focus area.',
         inputSchema: {
           type: 'object',
           properties: {
             sprintId: { type: 'string', description: 'Sprint ID' },
-            agentId: { type: 'string', description: 'Your agent ID' },
-            focusArea: { type: 'string', description: 'Your focus area to filter relevant shares (optional)' }
+            agentId: { type: 'string', description: 'Your agent ID (adds personalized updates)' },
+            focusArea: { type: 'string', description: 'Your focus area to filter relevant shares' },
+            includeUpdates: { type: 'boolean', description: 'Include new shares since last check' }
           },
-          required: ['sprintId', 'agentId']
+          required: ['sprintId']
         }
       }
     ]
@@ -1026,9 +620,44 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   try {
     switch (name) {
       case 'scrum_status': {
+        const input = StatusSchema.parse(args ?? {});
         const status = state.status();
+
+        // Tool profiles for discoverability
+        const soloTools = [
+          'scrum_status', 'scrum_task_create', 'scrum_task_get', 'scrum_task_list', 'scrum_task_update',
+          'scrum_intent_post', 'scrum_claim', 'scrum_claim_release', 'scrum_claims_list',
+          'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board', 'scrum_compliance_check'
+        ];
+        const teamTools = [
+          ...soloTools,
+          'scrum_claim_extend', 'scrum_changelog_log', 'scrum_changelog_search',
+          'scrum_comment_add', 'scrum_comments_list', 'scrum_blocker', 'scrum_dependency', 'scrum_metrics',
+          'scrum_dead_work'
+        ];
+        const sprintTools = [
+          'scrum_sprint_create', 'scrum_sprint_get', 'scrum_sprint_list', 'scrum_sprint_complete',
+          'scrum_sprint_join', 'scrum_sprint_leave', 'scrum_sprint_members',
+          'scrum_sprint_share', 'scrum_sprint_shares', 'scrum_sprint_context'
+        ];
+        const fullTools = [...teamTools, ...sprintTools];
+
+        let recommendedTools: string[];
+        if (input.profile === 'solo') {
+          recommendedTools = soloTools;
+        } else if (input.profile === 'team') {
+          recommendedTools = teamTools;
+        } else {
+          recommendedTools = fullTools;
+        }
+
         return {
-          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }]
+          content: [{ type: 'text', text: JSON.stringify({
+            ...status,
+            profile: input.profile ?? 'full',
+            recommendedTools,
+            toolCount: recommendedTools.length
+          }, null, 2) }]
         };
       }
 
@@ -1442,390 +1071,190 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // ==================== BLOCKERS ====================
+      // ==================== BLOCKERS (Consolidated) ====================
 
-      case 'scrum_blocker_add': {
-        const input = BlockerAddSchema.parse(args);
-        try {
-          const blocker = state.addBlocker(input);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ status: 'ok', blocker }, null, 2)
-              }
-            ]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown taskId')) {
+      case 'scrum_blocker': {
+        const input = BlockerActionSchema.parse(args);
+
+        if (input.action === 'add') {
+          try {
+            const blocker = state.addBlocker({
+              taskId: input.taskId!,
+              description: input.description!,
+              blockingTaskId: input.blockingTaskId,
+              agentId: input.agentId!
+            });
             return {
-              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-              isError: true
+              content: [{ type: 'text', text: JSON.stringify({ status: 'ok', action: 'add', blocker }, null, 2) }]
             };
+          } catch (e: any) {
+            if (e?.message?.includes('Unknown taskId')) {
+              return { content: [{ type: 'text', text: `Task not found: ${input.taskId}` }], isError: true };
+            }
+            if (e?.message?.includes('Unknown blockingTaskId')) {
+              return { content: [{ type: 'text', text: `Blocking task not found: ${input.blockingTaskId}` }], isError: true };
+            }
+            throw e;
           }
-          if (e?.message?.includes('Unknown blockingTaskId')) {
+        }
+
+        if (input.action === 'resolve') {
+          try {
+            const blocker = state.resolveBlocker(input.blockerId!);
             return {
-              content: [{ type: 'text', text: `Blocking task not found: ${input.blockingTaskId}` }],
-              isError: true
+              content: [{ type: 'text', text: JSON.stringify({ status: 'ok', action: 'resolve', blocker }, null, 2) }]
             };
+          } catch (e: any) {
+            if (e?.message?.includes('Unknown blockerId')) {
+              return { content: [{ type: 'text', text: `Blocker not found: ${input.blockerId}` }], isError: true };
+            }
+            throw e;
           }
-          throw e;
         }
+
+        if (input.action === 'list') {
+          const task = state.getTask(input.taskId!);
+          if (!task) {
+            return { content: [{ type: 'text', text: `Task not found: ${input.taskId}` }], isError: true };
+          }
+          const blockers = state.listBlockers(input.taskId!, { unresolvedOnly: input.unresolvedOnly });
+          const unresolvedCount = state.getUnresolvedBlockersCount(input.taskId!);
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ action: 'list', count: blockers.length, unresolvedCount, blockers }, null, 2) }]
+          };
+        }
+
+        return { content: [{ type: 'text', text: 'Invalid action' }], isError: true };
       }
 
-      case 'scrum_blocker_resolve': {
-        const input = BlockerResolveSchema.parse(args);
-        try {
-          const blocker = state.resolveBlocker(input.blockerId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ status: 'resolved', blocker }, null, 2)
-              }
-            ]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown blockerId')) {
+      case 'scrum_dependency': {
+        const input = DependencyActionSchema.parse(args);
+
+        if (input.action === 'add') {
+          try {
+            const dependency = state.addDependency(input.taskId!, input.dependsOnTaskId!);
             return {
-              content: [{ type: 'text', text: `Blocker not found: ${input.blockerId}` }],
-              isError: true
+              content: [{ type: 'text', text: JSON.stringify({ status: 'ok', action: 'add', dependency }, null, 2) }]
             };
+          } catch (e: any) {
+            if (e?.message?.includes('Unknown taskId')) {
+              return { content: [{ type: 'text', text: `Task not found: ${input.taskId}` }], isError: true };
+            }
+            if (e?.message?.includes('Unknown dependsOnTaskId')) {
+              return { content: [{ type: 'text', text: `Dependency task not found: ${input.dependsOnTaskId}` }], isError: true };
+            }
+            if (e?.message?.includes('cannot depend on itself') || e?.message?.includes('Circular dependency') || e?.message?.includes('Dependency already exists')) {
+              return { content: [{ type: 'text', text: e.message }], isError: true };
+            }
+            throw e;
           }
-          throw e;
         }
-      }
 
-      case 'scrum_blockers_list': {
-        const input = BlockersListMcpSchema.parse(args);
-        const blockers = state.listBlockers(input.taskId, { unresolvedOnly: input.unresolvedOnly });
-        const unresolvedCount = state.getUnresolvedBlockersCount(input.taskId);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                count: blockers.length,
-                unresolvedCount,
-                blockers
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      // ==================== DEPENDENCIES ====================
-
-      case 'scrum_dependency_add': {
-        const input = DependencyAddSchema.parse(args);
-        try {
-          const dependency = state.addDependency(input.taskId, input.dependsOnTaskId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ status: 'ok', dependency }, null, 2)
-              }
-            ]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown taskId')) {
-            return {
-              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-              isError: true
-            };
+        if (input.action === 'remove') {
+          const deleted = state.removeDependency(input.dependencyId!);
+          if (!deleted) {
+            return { content: [{ type: 'text', text: `Dependency not found: ${input.dependencyId}` }], isError: true };
           }
-          if (e?.message?.includes('Unknown dependsOnTaskId')) {
-            return {
-              content: [{ type: 'text', text: `Dependency task not found: ${input.dependsOnTaskId}` }],
-              isError: true
-            };
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', action: 'remove', deleted: true, dependencyId: input.dependencyId }, null, 2) }]
+          };
+        }
+
+        if (input.action === 'get') {
+          const task = state.getTask(input.taskId!);
+          if (!task) {
+            return { content: [{ type: 'text', text: `Task not found: ${input.taskId}` }], isError: true };
           }
-          if (e?.message?.includes('cannot depend on itself') || e?.message?.includes('Circular dependency') || e?.message?.includes('Dependency already exists')) {
-            return {
-              content: [{ type: 'text', text: e.message }],
-              isError: true
-            };
+          const deps = state.getDependencies(input.taskId!);
+          const records = state.getDependencyRecords(input.taskId!);
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ action: 'get', taskId: input.taskId, blockedBy: deps.blockedBy, blocking: deps.blocking, dependencyRecords: records }, null, 2) }]
+          };
+        }
+
+        if (input.action === 'check') {
+          const task = state.getTask(input.taskId!);
+          if (!task) {
+            return { content: [{ type: 'text', text: `Task not found: ${input.taskId}` }], isError: true };
           }
-          throw e;
-        }
-      }
-
-      case 'scrum_dependency_remove': {
-        const input = DependencyRemoveSchema.parse(args);
-        const deleted = state.removeDependency(input.dependencyId);
-        if (!deleted) {
+          const readiness = state.isTaskReady(input.taskId!);
           return {
-            content: [{ type: 'text', text: `Dependency not found: ${input.dependencyId}` }],
-            isError: true
+            content: [{ type: 'text', text: JSON.stringify({
+              action: 'check', taskId: input.taskId, ready: readiness.ready, blockingTasks: readiness.blockingTasks,
+              message: readiness.ready ? 'Task is ready to start (all dependencies are done)' : `Task is blocked by ${readiness.blockingTasks.length} incomplete dependencies`
+            }, null, 2) }]
           };
         }
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ status: 'ok', deleted: true, dependencyId: input.dependencyId }, null, 2)
-            }
-          ]
-        };
+
+        return { content: [{ type: 'text', text: 'Invalid action' }], isError: true };
       }
 
-      case 'scrum_dependencies_get': {
-        const input = DependenciesGetSchema.parse(args);
-        const task = state.getTask(input.taskId);
-        if (!task) {
-          return {
-            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-            isError: true
-          };
-        }
-        const deps = state.getDependencies(input.taskId);
-        const records = state.getDependencyRecords(input.taskId);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                taskId: input.taskId,
-                blockedBy: deps.blockedBy,
-                blocking: deps.blocking,
-                dependencyRecords: records
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'scrum_task_ready': {
-        const input = TaskReadySchema.parse(args);
-        const task = state.getTask(input.taskId);
-        if (!task) {
-          return {
-            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-            isError: true
-          };
-        }
-        const readiness = state.isTaskReady(input.taskId);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                taskId: input.taskId,
-                ready: readiness.ready,
-                blockingTasks: readiness.blockingTasks,
-                message: readiness.ready
-                  ? 'Task is ready to start (all dependencies are done)'
-                  : `Task is blocked by ${readiness.blockingTasks.length} incomplete dependencies`
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      // ==================== WIP LIMITS ====================
-
-      case 'scrum_wip_limits_get': {
-        const limits = state.getWipLimits();
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ limits }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'scrum_wip_limits_set': {
-        const input = WipLimitsSetMcpSchema.parse(args);
-        try {
-          state.setWipLimit(input.status, input.limit ?? null);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  status: 'ok',
-                  column: input.status,
-                  limit: input.limit ?? null,
-                  message: input.limit === null || input.limit === undefined
-                    ? `WIP limit removed for ${input.status}`
-                    : `WIP limit set to ${input.limit} for ${input.status}`
-                }, null, 2)
-              }
-            ]
-          };
-        } catch (e: any) {
-          return {
-            content: [{ type: 'text', text: e.message }],
-            isError: true
-          };
-        }
-      }
-
-      case 'scrum_wip_status': {
-        const wipStatus = state.getWipStatus();
-        const exceededColumns = wipStatus.filter(s => s.exceeded);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                columns: wipStatus,
-                exceededCount: exceededColumns.length,
-                exceeded: exceededColumns.map(s => s.status),
-                message: exceededColumns.length > 0
-                  ? `WIP limits exceeded for: ${exceededColumns.map(s => s.status).join(', ')}`
-                  : 'All columns within WIP limits'
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      // ==================== METRICS ====================
+      // ==================== METRICS (Consolidated) ====================
 
       case 'scrum_metrics': {
-        const input = MetricsMcpSchema.parse(args ?? {});
-        const metrics = state.getBoardMetrics({
-          since: input.since,
-          until: input.until
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(metrics, null, 2)
-            }
-          ]
-        };
-      }
+        const input = MetricsUnifiedSchema.parse(args ?? {});
 
-      case 'scrum_velocity': {
-        const input = VelocityMcpSchema.parse(args ?? {});
-        const velocity = state.getVelocity({
-          periodDays: input.periodDays,
-          periods: input.periods
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                periodDays: input.periodDays ?? 7,
-                periods: velocity,
-                summary: `Velocity over ${velocity.length} periods: ${velocity.map(v => v.storyPoints).join(', ')} story points`
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'scrum_aging_wip': {
-        const input = AgingWipMcpSchema.parse(args ?? {});
-        const aging = state.getAgingWip({
-          thresholdDays: input.thresholdDays
-        });
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                thresholdDays: input.thresholdDays ?? 2,
-                count: aging.length,
-                tasks: aging,
-                message: aging.length > 0
-                  ? `${aging.length} task(s) have been in progress for more than ${input.thresholdDays ?? 2} days`
-                  : 'No aging WIP tasks found'
-              }, null, 2)
-            }
-          ]
-        };
-      }
-
-      case 'scrum_task_metrics': {
-        const input = TaskMetricsSchema.parse(args);
-        const metrics = state.getTaskMetrics(input.taskId);
-        if (!metrics) {
+        if (input.type === 'board') {
+          const metrics = state.getBoardMetrics({
+            since: input.since,
+            until: input.until
+          });
           return {
-            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-            isError: true
+            content: [{ type: 'text', text: JSON.stringify({ type: 'board', ...metrics }, null, 2) }]
           };
         }
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                ...metrics,
-                leadTimeDays: metrics.leadTimeMs ? Math.round(metrics.leadTimeMs / (24 * 60 * 60 * 1000) * 10) / 10 : undefined,
-                cycleTimeDays: metrics.cycleTimeMs ? Math.round(metrics.cycleTimeMs / (24 * 60 * 60 * 1000) * 10) / 10 : undefined
-              }, null, 2)
-            }
-          ]
-        };
-      }
 
-      // ==================== AGENT REGISTRY ====================
-
-      case 'scrum_agent_register': {
-        const input = AgentRegisterSchema.parse(args);
-        const agent = state.registerAgent(input);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'registered',
-              agent,
-              message: `Agent ${input.agentId} registered with ${input.capabilities.length} capabilities`
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_agents_list': {
-        const input = AgentsListMcpSchema.parse(args ?? {});
-        const agents = state.listAgents({ includeOffline: input.includeOffline });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              count: agents.length,
-              agents,
-              message: agents.length > 0
-                ? `${agents.length} agent(s) registered`
-                : 'No agents registered'
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_agent_heartbeat': {
-        const input = AgentHeartbeatSchema.parse(args);
-        const success = state.agentHeartbeat(input.agentId);
-        if (!success) {
+        if (input.type === 'velocity') {
+          const velocity = state.getVelocity({
+            periodDays: input.periodDays,
+            periods: input.periods
+          });
           return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'not_found',
-                message: `Agent ${input.agentId} not found. Register first with scrum_agent_register.`
-              }, null, 2)
-            }],
-            isError: true
+            content: [{ type: 'text', text: JSON.stringify({
+              type: 'velocity',
+              periodDays: input.periodDays ?? 7,
+              periods: velocity,
+              summary: `Velocity over ${velocity.length} periods: ${velocity.map(v => v.storyPoints).join(', ')} story points`
+            }, null, 2) }]
           };
         }
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'ok',
-              agentId: input.agentId,
-              message: 'Heartbeat received'
-            }, null, 2)
-          }]
-        };
+
+        if (input.type === 'aging') {
+          const aging = state.getAgingWip({
+            thresholdDays: input.thresholdDays
+          });
+          return {
+            content: [{ type: 'text', text: JSON.stringify({
+              type: 'aging',
+              thresholdDays: input.thresholdDays ?? 2,
+              count: aging.length,
+              tasks: aging,
+              message: aging.length > 0
+                ? `${aging.length} task(s) have been in progress for more than ${input.thresholdDays ?? 2} days`
+                : 'No aging WIP tasks found'
+            }, null, 2) }]
+          };
+        }
+
+        if (input.type === 'task') {
+          const metrics = state.getTaskMetrics(input.taskId!);
+          if (!metrics) {
+            return {
+              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+              isError: true
+            };
+          }
+          return {
+            content: [{ type: 'text', text: JSON.stringify({
+              type: 'task',
+              ...metrics,
+              leadTimeDays: metrics.leadTimeMs ? Math.round(metrics.leadTimeMs / (24 * 60 * 60 * 1000) * 10) / 10 : undefined,
+              cycleTimeDays: metrics.cycleTimeMs ? Math.round(metrics.cycleTimeMs / (24 * 60 * 60 * 1000) * 10) / 10 : undefined
+            }, null, 2) }]
+          };
+        }
+
+        return { content: [{ type: 'text', text: 'Invalid metrics type' }], isError: true };
       }
 
       // ==================== DEAD WORK DETECTION ====================
@@ -1843,278 +1272,6 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               message: deadWork.length > 0
                 ? `Found ${deadWork.length} potentially abandoned task(s)`
                 : 'No dead work detected'
-            }, null, 2)
-          }]
-        };
-      }
-
-      // ==================== APPROVAL GATES ====================
-
-      case 'scrum_gate_define': {
-        const input = GateDefineSchema.parse(args);
-        try {
-          const gate = state.defineGate(input);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'ok',
-                gate,
-                message: `Gate "${input.gateType}" defined for status "${input.triggerStatus}"`
-              }, null, 2)
-            }]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown taskId')) {
-            return {
-              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-              isError: true
-            };
-          }
-          throw e;
-        }
-      }
-
-      case 'scrum_gates_list': {
-        const input = GateListSchema.parse(args);
-        const gates = state.listGates(input.taskId);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              taskId: input.taskId,
-              count: gates.length,
-              gates
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_gate_run': {
-        const input = GateRunSchema.parse(args);
-        try {
-          const run = state.recordGateRun(input);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: input.passed ? 'passed' : 'failed',
-                run,
-                message: `Gate ${input.passed ? 'passed' : 'failed'}`
-              }, null, 2)
-            }]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown gateId')) {
-            return {
-              content: [{ type: 'text', text: `Gate not found: ${input.gateId}` }],
-              isError: true
-            };
-          }
-          throw e;
-        }
-      }
-
-      case 'scrum_gate_status': {
-        const input = GateStatusSchema.parse(args);
-        const gateStatus = state.getGateStatus(input.taskId, input.forStatus);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              taskId: input.taskId,
-              forStatus: input.forStatus,
-              allPassed: gateStatus.allPassed,
-              gateCount: gateStatus.gates.length,
-              gates: gateStatus.gates,
-              blockedBy: gateStatus.blockedBy,
-              message: gateStatus.allPassed
-                ? `All ${gateStatus.gates.length} gate(s) passed for "${input.forStatus}"`
-                : `Blocked by ${gateStatus.blockedBy.length} gate(s)`
-            }, null, 2)
-          }]
-        };
-      }
-
-      // ==================== TASK TEMPLATES ====================
-
-      case 'scrum_template_create': {
-        const input = TemplateCreateSchema.parse(args);
-        try {
-          const template = state.createTemplate(input);
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'ok',
-                template,
-                message: `Template "${input.name}" created`
-              }, null, 2)
-            }]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('already exists')) {
-            return {
-              content: [{ type: 'text', text: `Template "${input.name}" already exists` }],
-              isError: true
-            };
-          }
-          throw e;
-        }
-      }
-
-      case 'scrum_template_get': {
-        const input = TemplateGetSchema.parse(args);
-        const template = state.getTemplate(input.nameOrId);
-        if (!template) {
-          return {
-            content: [{ type: 'text', text: `Template not found: ${input.nameOrId}` }],
-            isError: true
-          };
-        }
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({ template }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_templates_list': {
-        const templates = state.listTemplates();
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              count: templates.length,
-              templates
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_task_from_template': {
-        const input = TaskFromTemplateSchema.parse(args);
-        // Verify template exists first
-        const template = state.getTemplate(input.template);
-        if (!template) {
-          return {
-            content: [{ type: 'text', text: `Template not found: ${input.template}` }],
-            isError: true
-          };
-        }
-        const task = state.createTaskFromTemplate(input.template, input.variables, input.overrides);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'ok',
-              task,
-              fromTemplate: template.name,
-              message: `Task created from template "${template.name}"`
-            }, null, 2)
-          }]
-        };
-      }
-
-      // ==================== WEBHOOKS ====================
-
-      case 'scrum_webhook_register': {
-        const input = WebhookRegisterSchema.parse(args);
-        const webhook = state.registerWebhook(input);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'ok',
-              webhook,
-              message: `Webhook "${input.name}" registered for ${input.events.length} event(s)`
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_webhooks_list': {
-        const input = WebhooksListMcpSchema.parse(args ?? {});
-        const webhooks = state.listWebhooks({ enabledOnly: input.enabledOnly });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              count: webhooks.length,
-              webhooks
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_webhook_update': {
-        const input = WebhookUpdateSchema.parse(args);
-        try {
-          const webhook = state.updateWebhook(input.webhookId, {
-            url: input.url,
-            events: input.events,
-            headers: input.headers,
-            enabled: input.enabled
-          });
-          if (!webhook) {
-            return {
-              content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
-              isError: true
-            };
-          }
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'ok',
-                webhook,
-                message: `Webhook "${webhook.name}" updated`
-              }, null, 2)
-            }]
-          };
-        } catch (e: any) {
-          if (e?.message?.includes('Unknown webhookId')) {
-            return {
-              content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
-              isError: true
-            };
-          }
-          throw e;
-        }
-      }
-
-      case 'scrum_webhook_delete': {
-        const input = WebhookDeleteSchema.parse(args);
-        const deleted = state.deleteWebhook(input.webhookId);
-        if (!deleted) {
-          return {
-            content: [{ type: 'text', text: `Webhook not found: ${input.webhookId}` }],
-            isError: true
-          };
-        }
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'ok',
-              deleted: true,
-              webhookId: input.webhookId
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_webhook_deliveries': {
-        const input = WebhookDeliveriesSchema.parse(args);
-        const deliveries = state.listWebhookDeliveries(input.webhookId, input.limit ?? 50);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              webhookId: input.webhookId,
-              count: deliveries.length,
-              deliveries
             }, null, 2)
           }]
         };
@@ -2179,8 +1336,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_sprint_get': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
-        const input = SprintGetSchema.parse(args);
-        const sprint = state.getSprint(input.sprintId);
+        const input = SprintGetUnifiedSchema.parse(args);
+
+        // If taskId provided, look up sprint by task
+        if (input.taskId) {
+          const task = state.getTask(input.taskId);
+          if (!task) {
+            return {
+              content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+              isError: true
+            };
+          }
+
+          const sprint = state.getSprintForTask(input.taskId);
+          if (!sprint) {
+            return {
+              content: [{
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'no_sprint',
+                  taskId: input.taskId,
+                  message: 'No active sprint for this task. Create one with scrum_sprint_create if needed.'
+                }, null, 2)
+              }]
+            };
+          }
+
+          const members = state.getSprintMembers(sprint.id);
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({ sprint, members }, null, 2)
+            }]
+          };
+        }
+
+        // Otherwise, look up by sprintId
+        const sprint = state.getSprint(input.sprintId!);
         if (!sprint) {
           return {
             content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
@@ -2188,43 +1380,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         }
 
-        const members = state.getSprintMembers(input.sprintId);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({ sprint, members }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_sprint_for_task': {
-        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
-        const input = SprintForTaskSchema.parse(args);
-
-        // Verify task exists
-        const task = state.getTask(input.taskId);
-        if (!task) {
-          return {
-            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
-            isError: true
-          };
-        }
-
-        const sprint = state.getSprintForTask(input.taskId);
-        if (!sprint) {
-          return {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                status: 'no_sprint',
-                taskId: input.taskId,
-                message: 'No active sprint for this task. Create one with scrum_sprint_create if needed.'
-              }, null, 2)
-            }]
-          };
-        }
-
-        const members = state.getSprintMembers(sprint.id);
+        const members = state.getSprintMembers(input.sprintId!);
         return {
           content: [{
             type: 'text',
@@ -2406,7 +1562,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_sprint_context': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
-        const input = SprintContextSchema.parse(args);
+        const input = SprintContextUnifiedSchema.parse(args);
 
         const context = state.getSprintContext(input.sprintId);
         if (!context) {
@@ -2422,6 +1578,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const discoveries = context.shares.filter(s => s.shareType === 'discovery');
         const integrations = context.shares.filter(s => s.shareType === 'integration');
         const unansweredQuestions = state.getUnansweredQuestions(input.sprintId);
+
+        // If agentId provided, include personalized teammate/focus info
+        let personalizedInfo = {};
+        if (input.agentId) {
+          const myMembership = context.members.find(m => m.agentId === input.agentId);
+          const focusArea = input.focusArea || myMembership?.focusArea;
+
+          const relevantShares = focusArea
+            ? context.shares.filter(s => {
+                const content = (s.title + ' ' + s.content).toLowerCase();
+                return content.includes(focusArea.toLowerCase());
+              })
+            : [];
+
+          const teammates = context.members
+            .filter(m => m.agentId !== input.agentId)
+            .map(m => ({
+              agentId: m.agentId,
+              workingOn: m.workingOn,
+              focusArea: m.focusArea
+            }));
+
+          personalizedInfo = {
+            teammates,
+            relevantToYourFocus: focusArea ? relevantShares.length : 'no focus area set'
+          };
+        }
+
+        // If includeUpdates is true, include full share details
+        const sharesOutput = input.includeUpdates
+          ? { decisions, interfaces, discoveries, integrations, unansweredQuestions }
+          : {
+              decisions: decisions.slice(0, 5),
+              interfaces: interfaces.slice(0, 5),
+              unansweredQuestions: unansweredQuestions.slice(0, 5)
+            };
 
         return {
           content: [{
@@ -2439,89 +1631,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 integrationsCount: integrations.length,
                 unansweredQuestionsCount: unansweredQuestions.length
               },
-              // Key information for understanding team work
-              decisions,
-              interfaces,
-              discoveries,
-              integrations,
-              unansweredQuestions,
-              message: `${context.members.length} agent(s) in sprint. Review decisions and interfaces before starting work.`
-            }, null, 2)
-          }]
-        };
-      }
-
-      case 'scrum_sprint_check': {
-        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
-        const input = SprintCheckSchema.parse(args);
-
-        const context = state.getSprintContext(input.sprintId);
-        if (!context) {
-          return {
-            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
-            isError: true
-          };
-        }
-
-        // Find the agent's focus area from their membership
-        const myMembership = context.members.find(m => m.agentId === input.agentId);
-        const focusArea = input.focusArea || myMembership?.focusArea;
-
-        // Get unanswered questions
-        const unansweredQuestions = state.getUnansweredQuestions(input.sprintId);
-
-        // Filter shares relevant to this agent's focus area
-        const relevantShares = focusArea
-          ? context.shares.filter(s => {
-              // Check if share content mentions focus area
-              const content = (s.title + ' ' + s.content).toLowerCase();
-              const focus = focusArea.toLowerCase();
-              return content.includes(focus);
-            })
-          : [];
-
-        // Find interfaces that might need implementation
-        const interfaces = context.shares.filter(s => s.shareType === 'interface');
-
-        // Find integration points
-        const integrations = context.shares.filter(s => s.shareType === 'integration');
-
-        // What other agents are working on
-        const teammates = context.members
-          .filter(m => m.agentId !== input.agentId)
-          .map(m => ({
-            agentId: m.agentId,
-            workingOn: m.workingOn,
-            focusArea: m.focusArea
-          }));
-
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              status: 'ok',
-              teammates,
-              unansweredQuestions: unansweredQuestions.map(q => ({
-                id: q.id,
-                title: q.title,
-                agentId: q.agentId,
-                createdAt: q.createdAt
-              })),
-              interfaces: interfaces.map(i => ({
-                id: i.id,
-                title: i.title,
-                agentId: i.agentId,
-                relatedFiles: i.relatedFiles
-              })),
-              integrations: integrations.map(i => ({
-                id: i.id,
-                title: i.title,
-                agentId: i.agentId
-              })),
-              relevantToYourFocus: focusArea ? relevantShares.length : 'no focus area set',
+              ...sharesOutput,
+              ...personalizedInfo,
               message: unansweredQuestions.length > 0
-                ? `${unansweredQuestions.length} unanswered question(s) - can you help?`
-                : 'Team is coordinated. Check interfaces and integrations for connection points.'
+                ? `${context.members.length} agent(s) in sprint. ${unansweredQuestions.length} unanswered question(s) - can you help?`
+                : `${context.members.length} agent(s) in sprint. Review decisions and interfaces before starting work.`
             }, null, 2)
           }]
         };

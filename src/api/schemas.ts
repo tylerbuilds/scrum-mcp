@@ -722,3 +722,119 @@ export type LimitQueryInput = z.infer<typeof LimitQuerySchema>;
 
 // Legacy aliases for backward compatibility
 export const CommentListQuery = CommentListQuerySchema;
+
+// ==================== CONSOLIDATED MCP SCHEMAS (v0.5.1) ====================
+
+/**
+ * Unified blocker tool - replaces scrum_blocker_add, scrum_blocker_resolve, scrum_blockers_list
+ */
+export const BlockerActionEnum = z.enum(['add', 'resolve', 'list']);
+export type BlockerAction = z.infer<typeof BlockerActionEnum>;
+
+export const BlockerActionSchema = z.object({
+  action: BlockerActionEnum,
+  // For add:
+  taskId: TaskIdField.optional(),
+  description: z.string().min(1).max(2000).optional(),
+  blockingTaskId: TaskIdField.optional(),
+  agentId: AgentIdField.optional(),
+  // For resolve:
+  blockerId: z.string().min(4).optional(),
+  // For list:
+  unresolvedOnly: z.boolean().optional()
+}).refine(
+  (data) => {
+    if (data.action === 'add') return data.taskId && data.description && data.agentId;
+    if (data.action === 'resolve') return data.blockerId;
+    if (data.action === 'list') return data.taskId;
+    return false;
+  },
+  { message: 'Missing required fields for action' }
+);
+export type BlockerActionInput = z.infer<typeof BlockerActionSchema>;
+
+/**
+ * Unified dependency tool - replaces scrum_dependency_add, scrum_dependency_remove, scrum_dependencies_get, scrum_task_ready
+ */
+export const DependencyActionEnum = z.enum(['add', 'remove', 'get', 'check']);
+export type DependencyAction = z.infer<typeof DependencyActionEnum>;
+
+export const DependencyActionSchema = z.object({
+  action: DependencyActionEnum,
+  // For add:
+  taskId: TaskIdField.optional(),
+  dependsOnTaskId: TaskIdField.optional(),
+  // For remove:
+  dependencyId: z.string().min(4).optional()
+  // For get and check: taskId is used
+}).refine(
+  (data) => {
+    if (data.action === 'add') return data.taskId && data.dependsOnTaskId;
+    if (data.action === 'remove') return data.dependencyId;
+    if (data.action === 'get' || data.action === 'check') return data.taskId;
+    return false;
+  },
+  { message: 'Missing required fields for action' }
+);
+export type DependencyActionInput = z.infer<typeof DependencyActionSchema>;
+
+/**
+ * Unified metrics tool - replaces scrum_metrics, scrum_velocity, scrum_aging_wip, scrum_task_metrics
+ */
+export const MetricsTypeEnum = z.enum(['board', 'velocity', 'aging', 'task']);
+export type MetricsType = z.infer<typeof MetricsTypeEnum>;
+
+export const MetricsUnifiedSchema = z.object({
+  type: MetricsTypeEnum.default('board'),
+  // For board:
+  since: z.number().optional(),
+  until: z.number().optional(),
+  // For velocity:
+  periodDays: z.number().int().min(1).max(30).optional(),
+  periods: z.number().int().min(1).max(12).optional(),
+  // For aging:
+  thresholdDays: z.number().min(0.5).max(30).optional(),
+  // For task:
+  taskId: TaskIdField.optional()
+}).refine(
+  (data) => {
+    if (data.type === 'task') return !!data.taskId;
+    return true;
+  },
+  { message: 'taskId is required for type=task' }
+);
+export type MetricsUnifiedInput = z.infer<typeof MetricsUnifiedSchema>;
+
+/**
+ * Unified sprint get - replaces scrum_sprint_get and scrum_sprint_for_task
+ */
+export const SprintGetUnifiedSchema = z.object({
+  sprintId: z.string().min(4).optional(),
+  taskId: TaskIdField.optional()
+}).refine(
+  (data) => data.sprintId || data.taskId,
+  { message: 'Either sprintId or taskId is required' }
+);
+export type SprintGetUnifiedInput = z.infer<typeof SprintGetUnifiedSchema>;
+
+/**
+ * Unified sprint context - replaces scrum_sprint_context and scrum_sprint_check
+ */
+export const SprintContextUnifiedSchema = z.object({
+  sprintId: z.string().min(4),
+  agentId: AgentIdField.optional(),
+  focusArea: z.string().max(100).optional(),
+  includeUpdates: z.boolean().optional()
+});
+export type SprintContextUnifiedInput = z.infer<typeof SprintContextUnifiedSchema>;
+
+/**
+ * Status profile for tool discovery
+ */
+export const StatusProfileEnum = z.enum(['solo', 'team', 'full']);
+export type StatusProfile = z.infer<typeof StatusProfileEnum>;
+
+export const StatusSchema = z.object({
+  profile: StatusProfileEnum.optional()
+});
+export type StatusInput = z.infer<typeof StatusSchema>;

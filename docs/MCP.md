@@ -101,10 +101,16 @@ These are the foundational SCRUM coordination tools.
 
 #### `scrum_status`
 
-Get current SCRUM server status.
+Get current SCRUM server status and available tools. **v0.6.0+**: Use profile to filter tool recommendations.
 
 ```
-Returns: { tasks, intents, claims, evidence, now }
+Inputs:
+  - profile (optional): Tool profile
+    - "solo": Core tools for individual work (13 tools)
+    - "team": + collaboration tools (22 tools)
+    - "full": All tools including Sprint (32 tools) [default]
+
+Returns: { tasks, intents, claims, evidence, now, profile, recommendedTools, toolCount }
 ```
 
 #### `scrum_task_create`
@@ -308,13 +314,16 @@ Inputs:
 Returns: { member, teamSize, teammates, message }
 ```
 
-#### `scrum_sprint_context`
+#### `scrum_sprint_context` (Consolidated - v0.6.0)
 
-**CRITICAL: Call this before starting work.** Get full sprint context including what teammates are doing, decisions made, and interfaces defined.
+**CRITICAL: Call this before starting work.** Get full sprint context including what teammates are doing, decisions made, and interfaces defined. Combines the former `sprint_context` and `sprint_check` tools.
 
 ```
 Inputs:
   - sprintId (required): Sprint ID
+  - agentId (optional): Your agent ID for personalized info (teammates, relevant shares)
+  - focusArea (optional): Filter shares relevant to your focus area
+  - includeUpdates (optional): Include full share details (default: false for summary only)
 
 Returns: {
   sprint: Sprint,
@@ -327,9 +336,10 @@ Returns: {
   },
   decisions: SprintShare[],
   interfaces: SprintShare[],
-  discoveries: SprintShare[],
-  integrations: SprintShare[],
-  unansweredQuestions: SprintShare[]
+  unansweredQuestions: SprintShare[],
+  // If agentId provided:
+  teammates: [{ agentId, workingOn, focusArea }],
+  relevantToYourFocus: number | "no focus area set"
 }
 ```
 
@@ -355,26 +365,6 @@ Inputs:
   - replyToId (optional): Share ID this answers (for "answer" type)
 
 Returns: { id, sprintId, agentId, shareType, title, content, createdAt }
-```
-
-#### `scrum_sprint_check`
-
-Periodic sync to see teammate updates. Call this every few changes to stay coordinated.
-
-```
-Inputs:
-  - sprintId (required): Sprint ID
-  - agentId (required): Your identifier
-  - focusArea (optional): Filter by your focus area
-
-Returns: {
-  teammates: [{ agentId, workingOn, focusArea }],
-  unansweredQuestions: [{ id, title, agentId, createdAt }],
-  interfaces: [{ id, title, agentId, relatedFiles }],
-  integrations: [{ id, title, agentId }],
-  relevantToYourFocus: number | "no focus area set",
-  message: string
-}
 ```
 
 #### `scrum_sprint_leave`
@@ -413,26 +403,18 @@ Inputs:
 Returns: { sprintId, count, shares }
 ```
 
-#### `scrum_sprint_get`
+#### `scrum_sprint_get` (Consolidated - v0.6.0)
 
-Get sprint details by ID.
-
-```
-Inputs:
-  - sprintId (required): Sprint ID
-
-Returns: { sprint, members }
-```
-
-#### `scrum_sprint_for_task`
-
-Get the active sprint for a task.
+Get sprint by ID OR find active sprint for a task. Provide either `sprintId` or `taskId`.
 
 ```
 Inputs:
-  - taskId (required): Task ID
+  - sprintId (optional): Sprint ID to retrieve directly
+  - taskId (optional): Task ID to find active sprint for
 
-Returns: { sprint, members } or { status: "no_sprint", message }
+  NOTE: Provide sprintId OR taskId (not both)
+
+Returns: { sprint, members } or { status: "no_sprint", message } if no sprint found for task
 ```
 
 #### `scrum_sprint_list`
@@ -472,9 +454,9 @@ scrum_sprint_join(sprint.id, "agent-frontend", workingOn: "Login form", focusAre
 scrum_sprint_share(sprint.id, "agent-backend", "decision", "Using bcrypt for passwords", "...")
 scrum_sprint_share(sprint.id, "agent-backend", "interface", "AuthService API", "POST /auth/signin...")
 
-# Frontend agent checks context before coding
-context = scrum_sprint_context(sprint.id)
-# → Now knows about bcrypt decision and API contract
+# Frontend agent checks context before coding (now includes personalized info)
+context = scrum_sprint_context(sprint.id, agentId: "agent-frontend", focusArea: "frontend")
+# → Now knows about bcrypt decision, API contract, and teammates
 
 # Frontend agent asks a question
 scrum_sprint_share(sprint.id, "agent-frontend", "question", "Where to store refresh token?", "...")
@@ -483,8 +465,8 @@ scrum_sprint_share(sprint.id, "agent-frontend", "question", "Where to store refr
 scrum_sprint_share(sprint.id, "agent-backend", "answer", "Use httpOnly cookies", "...", replyToId: question.id)
 
 # Agents do their work (standard SCRUM: intent → claim → edit → changelog → evidence)
-# Periodic check for updates
-scrum_sprint_check(sprint.id, "agent-frontend")
+# Periodic check for updates (same consolidated tool)
+scrum_sprint_context(sprint.id, agentId: "agent-frontend", includeUpdates: true)
 
 # When done
 scrum_sprint_leave(sprint.id, "agent-frontend")
@@ -560,271 +542,84 @@ Inputs:
 Returns: Comment[]
 ```
 
-#### `scrum_blocker_add`
+#### `scrum_blocker` (Consolidated - v0.6.0)
 
-Add a blocker to a task.
-
-```
-Inputs:
-  - taskId (required): Task ID
-  - agentId (required): Your identifier
-  - description (required): What is blocking progress
-  - blockerType (optional): Type ("technical", "dependency", "external", "resource")
-
-Returns: { id, taskId, agentId, description, blockerType, resolved, createdAt }
-```
-
-#### `scrum_blocker_resolve`
-
-Resolve a blocker on a task.
+Manage blockers on tasks. **Actions: add, resolve, list**.
 
 ```
 Inputs:
-  - blockerId (required): Blocker ID
-  - agentId (required): Your identifier
-  - resolution (optional): How it was resolved
+  - action (required): "add", "resolve", or "list"
 
-Returns: { blocker } with resolved: true and resolvedAt timestamp
+  For add:
+    - taskId (required): Task ID
+    - description (required): What is blocking progress
+    - blockingTaskId (optional): Task causing the block
+    - agentId (required): Your identifier
+
+  For resolve:
+    - blockerId (required): Blocker ID to resolve
+
+  For list:
+    - taskId (required): Task ID
+    - unresolvedOnly (optional): Only show unresolved (default: false)
+
+Returns: Action-specific result with blocker details
 ```
 
-#### `scrum_blockers_list`
+#### `scrum_dependency` (Consolidated - v0.6.0)
 
-List blockers for a task.
-
-```
-Inputs:
-  - taskId (required): Task ID
-  - includeResolved (optional): Include resolved blockers (default: false)
-
-Returns: Blocker[]
-```
-
-### Dependencies
-
-Tools for managing task dependencies and execution order.
-
-#### `scrum_dependency_add`
-
-Add a dependency between tasks (task A depends on task B).
+Manage task dependencies. **Actions: add, remove, get, check**.
 
 ```
 Inputs:
-  - taskId (required): Task that has the dependency
-  - dependsOnTaskId (required): Task that must complete first
-  - dependencyType (optional): Type ("blocks", "required_by", "related")
+  - action (required): "add", "remove", "get", or "check"
 
-Returns: { id, taskId, dependsOnTaskId, dependencyType, createdAt }
+  For add:
+    - taskId (required): Task that has the dependency
+    - dependsOnTaskId (required): Task that must complete first
+
+  For remove:
+    - dependencyId (required): Dependency ID to remove
+
+  For get:
+    - taskId (required): Task ID to get dependencies for
+
+  For check:
+    - taskId (required): Task ID to check readiness
+
+Returns: Action-specific result with dependency/readiness info
 ```
 
-#### `scrum_dependency_remove`
+### Metrics (Consolidated - v0.6.0)
 
-Remove a dependency between tasks.
-
-```
-Inputs:
-  - taskId (required): Task with the dependency
-  - dependsOnTaskId (required): Task to remove as dependency
-
-Returns: { status: "ok", removed: true }
-```
-
-#### `scrum_dependencies_get`
-
-Get all dependencies for a task.
-
-```
-Inputs:
-  - taskId (required): Task ID
-  - direction (optional): "upstream" (what this depends on), "downstream" (what depends on this), or "both" (default)
-
-Returns: {
-  upstream: Dependency[],
-  downstream: Dependency[]
-}
-```
-
-#### `scrum_task_ready`
-
-Check if a task is ready to start (all dependencies completed).
+**`scrum_metrics`** - Unified metrics tool with multiple types.
 
 ```
 Inputs:
-  - taskId (required): Task ID
+  - type (optional): "board", "velocity", "aging", or "task" (default: "board")
 
-Returns: {
-  ready: boolean,
-  blockedBy: Task[],
-  message: string
-}
-```
+  For board:
+    - since (optional): Start timestamp
+    - until (optional): End timestamp
+  Returns: { cycleTime, leadTime, throughput, completedTasks, period }
 
-### WIP Limits
+  For velocity:
+    - periodDays (optional): Days per period (default: 7)
+    - periods (optional): Number of periods (default: 4)
+  Returns: { periodDays, periods[], summary }
 
-Tools for managing work-in-progress limits to prevent overload.
+  For aging:
+    - thresholdDays (optional): Days threshold (default: 2)
+  Returns: { thresholdDays, count, tasks[], message }
 
-#### `scrum_wip_limits_get`
-
-Get WIP limits for all columns.
-
-```
-Returns: {
-  backlog: number | null,
-  todo: number | null,
-  in_progress: number | null,
-  review: number | null,
-  done: number | null
-}
-```
-
-#### `scrum_wip_limits_set`
-
-Set WIP limit for a column.
-
-```
-Inputs:
-  - column (required): Column name ("backlog", "todo", "in_progress", "review", "done")
-  - limit (required): Max tasks allowed (number, or null to remove limit)
-
-Returns: { column, limit, previous }
-```
-
-#### `scrum_wip_status`
-
-Get current WIP status showing limits vs actual counts.
-
-```
-Returns: {
-  columns: {
-    [column]: {
-      limit: number | null,
-      current: number,
-      available: number | null,
-      overLimit: boolean
-    }
-  },
-  totalOverLimit: number
-}
-```
-
-### Metrics
-
-Tools for tracking team performance and identifying bottlenecks.
-
-#### `scrum_metrics`
-
-Get board-level metrics including cycle time, lead time, and throughput.
-
-```
-Inputs:
-  - days (optional): Number of days to analyze (default: 30)
-
-Returns: {
-  cycleTime: { average, median, p90 },
-  leadTime: { average, median, p90 },
-  throughput: { daily, weekly },
-  completedTasks: number,
-  period: { start, end }
-}
-```
-
-#### `scrum_velocity`
-
-Get velocity over time periods (story points completed).
-
-```
-Inputs:
-  - periods (optional): Number of periods to return (default: 4)
-  - periodType (optional): "week" or "sprint" (default: "week")
-
-Returns: {
-  periods: [{
-    start, end,
-    completedPoints: number,
-    completedTasks: number
-  }],
-  averageVelocity: number
-}
-```
-
-#### `scrum_aging_wip`
-
-Get tasks that have been in progress for too long.
-
-```
-Inputs:
-  - thresholdDays (optional): Days before considered aging (default: 3)
-
-Returns: {
-  agingTasks: [{
-    task: Task,
-    daysInProgress: number,
-    status: string
-  }],
-  totalAging: number
-}
-```
-
-#### `scrum_task_metrics`
-
-Get metrics for a single task.
-
-```
-Inputs:
-  - taskId (required): Task ID
-
-Returns: {
-  task: Task,
-  cycleTime: number | null,
-  leadTime: number | null,
-  timeInStatus: { [status]: number },
-  blockerCount: number,
-  commentCount: number,
-  dependencyCount: number
-}
-```
-
-### Agent Registry
-
-Tools for agent observability and coordination. Register your agent for visibility.
-
-#### `scrum_agent_register`
-
-Register your agent with SCRUM. Call at session start for observability.
-
-```
-Inputs:
-  - agentId (required): Your unique identifier (e.g., "claude-code-a1b2c3")
-  - capabilities (required): Array of capabilities (e.g., ["code_review", "testing"])
-  - metadata (optional): Metadata object (e.g., {"model": "claude-opus"})
-
-Returns: { status: "registered", agent }
-```
-
-#### `scrum_agents_list`
-
-List all registered agents and their status.
-
-```
-Inputs:
-  - includeOffline (optional): Include offline agents (default: false)
-
-Returns: { count, agents[] }
-```
-
-#### `scrum_agent_heartbeat`
-
-Send heartbeat to indicate agent is still active. Agents go offline after 5 minutes.
-
-```
-Inputs:
-  - agentId (required): Your agent identifier
-
-Returns: { status: "ok", message }
+  For task:
+    - taskId (required): Task ID
+  Returns: { taskId, cycleTime, leadTime, timeInStatus, ... }
 ```
 
 ### Dead Work Detection
 
-Tools for finding abandoned work that needs attention.
+Find abandoned work that needs attention.
 
 #### `scrum_dead_work`
 
@@ -835,215 +630,24 @@ Inputs:
   - staleDays (optional): Days threshold for staleness (default: 1)
 
 Returns: {
+  staleDays: number,
   count: number,
-  tasks: [{
-    taskId, title, status,
-    assignedAgent, daysStale,
-    hasActiveClaims, hasRecentEvidence,
-    reason: "no_claims" | "no_activity" | "stale"
-  }]
+  tasks: Task[],
+  message: string
 }
 ```
 
-### Approval Gates
+### REST-Only Admin Tools (v0.6.0)
 
-Tools for defining validation steps that must pass before status transitions.
+The following features are available via REST API only (not MCP) to reduce agent tool count:
 
-> **⚠️ Security Warning:** Gate commands are stored but NOT automatically executed by SCRUM.
-> Agents must execute gate commands themselves and report results via `scrum_gate_run`.
-> **Never blindly execute gate commands** from untrusted sources. Validate that commands
-> are safe before execution (e.g., reject commands containing shell metacharacters, pipes,
-> or redirects unless explicitly allowed).
+- **WIP Limits**: `/api/wip-limits` - GET, PUT
+- **Agent Registry**: `/api/agents` - GET, POST (register, list, heartbeat)
+- **Approval Gates**: `/api/gates` - CRUD operations
+- **Task Templates**: `/api/templates` - CRUD operations
+- **Webhooks**: `/api/webhooks` - CRUD operations
 
-#### `scrum_gate_define`
-
-Define an approval gate for a task. Gates run commands that must pass.
-
-```
-Inputs:
-  - taskId (required): Task ID to attach gate to
-  - gateType (required): Type ("lint", "test", "build", "review", "custom")
-  - command (required): Command to run (e.g., "npm run lint")
-  - triggerStatus (required): Status that triggers this gate
-  - required (optional): Must pass to transition (default: true)
-
-Returns: { id, taskId, gateType, command, triggerStatus, required, createdAt }
-```
-
-#### `scrum_gates_list`
-
-List all gates defined for a task.
-
-```
-Inputs:
-  - taskId (required): Task ID
-
-Returns: { count, gates[] }
-```
-
-#### `scrum_gate_run`
-
-Record a gate run result after executing the gate command.
-
-```
-Inputs:
-  - gateId (required): Gate ID
-  - taskId (required): Task ID
-  - agentId (required): Your identifier
-  - passed (required): Whether the gate passed
-  - output (optional): Command output
-  - durationMs (optional): Execution time in ms
-
-Returns: { id, gateId, taskId, agentId, passed, output, durationMs, createdAt }
-```
-
-#### `scrum_gate_status`
-
-Get gate status for a task and target status transition.
-
-```
-Inputs:
-  - taskId (required): Task ID
-  - forStatus (required): Status to check gates for
-
-Returns: {
-  allPassed: boolean,
-  gates: [{ gate, lastRun, status }],
-  blockedBy: Gate[]
-}
-```
-
-### Task Templates
-
-Tools for creating and using reusable task patterns.
-
-#### `scrum_template_create`
-
-Create a reusable task template with pre-configured settings.
-
-```
-Inputs:
-  - name (required): Unique template name
-  - titlePattern (required): Title with {{placeholders}}
-  - descriptionTemplate (optional): Description with {{placeholders}}
-  - defaultStatus (optional): Default status
-  - defaultPriority (optional): Default priority
-  - defaultLabels (optional): Default labels array
-  - defaultStoryPoints (optional): Default story points
-  - gates (optional): Pre-configured gates array
-  - checklist (optional): Acceptance checklist items
-
-Returns: { id, name, titlePattern, ... }
-```
-
-#### `scrum_template_get`
-
-Get a task template by name or ID.
-
-```
-Inputs:
-  - nameOrId (required): Template name or ID
-
-Returns: { template }
-```
-
-#### `scrum_templates_list`
-
-List all available task templates.
-
-```
-Returns: { count, templates[] }
-```
-
-#### `scrum_task_from_template`
-
-Create a new task from a template with variable substitution.
-
-```
-Inputs:
-  - template (required): Template name or ID
-  - variables (required): Substitutions (e.g., {"issue": "Bug in login"})
-  - overrides (optional): Override template defaults
-
-Returns: { status: "ok", task, fromTemplate }
-```
-
-### Webhooks
-
-Tools for event notifications to external systems.
-
-> **⚠️ Security Notes:**
-> - **SSRF Protection:** In production, validate webhook URLs to block internal/private IPs
->   (localhost, 10.x, 172.16-31.x, 192.168.x). SCRUM does not currently enforce this.
-> - **HMAC Signing:** The `secret` field is stored but HMAC signing is not yet implemented.
->   Webhook payloads are sent unsigned. Future versions will add `X-SCRUM-Signature` header.
-
-#### `scrum_webhook_register`
-
-Register an outbound webhook for event notifications.
-
-```
-Inputs:
-  - name (required): Webhook name
-  - url (required): Webhook URL
-  - events (required): Events to subscribe to:
-    - "task.created", "task.updated", "task.completed"
-    - "intent.posted", "claim.created", "claim.conflict", "claim.released"
-    - "evidence.attached", "gate.passed", "gate.failed"
-  - headers (optional): Custom headers
-  - secret (optional): Secret for HMAC signing
-
-Returns: { id, name, url, events, enabled, createdAt }
-```
-
-#### `scrum_webhooks_list`
-
-List all registered webhooks.
-
-```
-Inputs:
-  - enabledOnly (optional): Only show enabled webhooks
-
-Returns: { count, webhooks[] }
-```
-
-#### `scrum_webhook_update`
-
-Update a webhook configuration.
-
-```
-Inputs:
-  - webhookId (required): Webhook ID
-  - url (optional): New URL
-  - events (optional): New events
-  - headers (optional): New headers
-  - enabled (optional): Enable/disable webhook
-
-Returns: { webhook }
-```
-
-#### `scrum_webhook_delete`
-
-Delete a webhook.
-
-```
-Inputs:
-  - webhookId (required): Webhook ID
-
-Returns: { deleted: true }
-```
-
-#### `scrum_webhook_deliveries`
-
-Get recent delivery history for a webhook.
-
-```
-Inputs:
-  - webhookId (required): Webhook ID
-  - limit (optional): Max deliveries (default: 50)
-
-Returns: { count, deliveries[] }
-```
+See the REST API documentation for details.
 
 ### Changelog Extensions
 
