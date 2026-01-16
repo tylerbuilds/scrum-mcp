@@ -282,15 +282,26 @@
               </div>
               <pre id="claude-prompt"># Project Instructions
 
-**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+**CRITICAL: Always use SCRUM MCP tools for ANY code changes.** Multiple agents may be working on this codebase simultaneously. SCRUM enforcement is mandatory - the server will reject non-compliant operations.
+
+## HARD RULES (Non-Negotiable)
+
+1. **NEVER use `git commit --no-verify`** - This bypasses compliance checks
+2. **NEVER set `SCRUM_PRECOMMIT_SKIP=true`** - This disables enforcement
+3. **NEVER modify files without posting intent first** - Server will reject claims
+4. **NEVER release claims without attaching evidence** - Server will reject release
+5. **ALWAYS run `scrum_compliance_check` before committing** - Verify your work
+
+Violations of these rules will be caught by pre-commit hooks and your commits will be blocked.
 
 ## Session Startup (Do This First!)
 
 When starting a session, AUTOMATICALLY run:
 ```
-scrum_status()      # Check server status
+scrum_status()      # Check server status and your profile
 scrum_task_list()   # See pending/active tasks
-scrum_claims_list() # See what files are claimed
+scrum_claims_list() # See what files are claimed by other agents
+scrum_board()       # See kanban board for bottlenecks
 ```
 
 This gives you situational awareness of what other agents are working on.
@@ -302,8 +313,9 @@ Before releasing any file claims, you MUST:
 1. **Run tests** - All existing tests must pass
 2. **No regressions** - Don't break what works
 3. **Attach evidence** - Prove your changes work via `scrum_evidence_attach`
-4. **Small, focused changes** - One concern per task, don't scope creep
-5. **Review your own code** - Read it back before committing
+4. **Check compliance** - Run `scrum_compliance_check(taskId, agentId)` before committing
+5. **Small, focused changes** - One concern per task, don't scope creep
+6. **Review your own code** - Read it back before committing
 
 Do NOT optimise for speed of completion. Optimise for correctness and maintainability. If unsure, ask the user rather than guessing.
 
@@ -489,7 +501,68 @@ When multiple sub-agents work on the same task, use Sprint for shared context:
 | discovery | Things you learned ("found validation utils in src/utils") |
 | integration | How to connect ("import AuthService from src/auth") |
 | question | Ask teammates ("should we use Redis for sessions?") |
-| answer | Reply to questions (use replyToId to link)</pre>
+| answer | Reply to questions (use replyToId to link)
+
+## Pre-Commit Enforcement
+
+Git pre-commit hooks validate SCRUM compliance before every commit. If you:
+- Modified files not declared in your intent → **BLOCKED**
+- Touched boundary files (DO NOT TOUCH) → **BLOCKED**
+- Haven't attached evidence (strict mode) → **BLOCKED**
+
+### Before Committing
+
+```
+# 1. Check your compliance score
+scrum_compliance_check(taskId: "task-id", agentId: "your-id")
+# Returns: { compliant: true/false, score: 0-100, issues: [...] }
+
+# 2. If compliant, commit normally
+git add .
+git commit -m "Your message"
+# Hook validates automatically
+
+# 3. If blocked, fix issues first
+scrum_intent_post(...)  # Add missing files to intent
+scrum_evidence_attach(...)  # Attach missing evidence
+```
+
+### FORBIDDEN Commands
+
+These bypass enforcement and are NOT ALLOWED:
+- `git commit --no-verify` ❌
+- `SCRUM_PRECOMMIT_SKIP=true git commit` ❌
+- `git commit --amend --no-verify` ❌
+
+## Additional Tools (v0.5.1)
+
+### Blockers
+```
+scrum_blocker(action: "add", taskId, description)    # Report blocker
+scrum_blocker(action: "resolve", blockerId, resolution)  # Clear blocker
+scrum_blocker(action: "list", taskId?)               # List blockers
+```
+
+### Dependencies
+```
+scrum_dependency(action: "add", taskId, dependsOn)   # Task X needs Y
+scrum_dependency(action: "check", taskId)            # Are dependencies done?
+scrum_dependency(action: "get", taskId)              # List dependencies
+```
+
+### Metrics
+```
+scrum_metrics(type: "board")     # Cycle time, throughput
+scrum_metrics(type: "velocity")  # Story points over time
+scrum_metrics(type: "aging")     # Stuck tasks
+scrum_metrics(type: "task", taskId)  # Single task analysis
+```
+
+### Comments
+```
+scrum_comment_add(taskId, agentId, content)  # Add discussion
+scrum_comments_list(taskId)                  # Read discussion
+```</pre>
             </div>
           </div>
         </div>
@@ -508,14 +581,25 @@ When multiple sub-agents work on the same task, use Sprint for shared context:
               </div>
               <pre id="cursor-prompt"># Project Rules
 
-**IMPORTANT: Always use SCRUM MCP tools for any code changes.** Multiple agents may be working on this codebase simultaneously. Check for conflicts and claim files before editing.
+**CRITICAL: Always use SCRUM MCP tools for ANY code changes.** Multiple agents may be working on this codebase simultaneously. SCRUM enforcement is mandatory - the server will reject non-compliant operations.
+
+## HARD RULES (Non-Negotiable)
+
+1. **NEVER use `git commit --no-verify`** - Bypasses compliance checks
+2. **NEVER set `SCRUM_PRECOMMIT_SKIP=true`** - Disables enforcement
+3. **NEVER modify files without posting intent first** - Server rejects claims
+4. **NEVER release claims without attaching evidence** - Server rejects release
+5. **ALWAYS run `scrum_compliance_check` before committing** - Verify your work
+
+Pre-commit hooks will BLOCK commits that violate these rules.
 
 ## Session Startup (Do First!)
 
 AUTOMATICALLY run at session start:
-- `scrum_status()` - Check server status
+- `scrum_status()` - Check server status and profile
 - `scrum_task_list()` - See pending tasks
 - `scrum_claims_list()` - See claimed files
+- `scrum_board()` - See kanban for bottlenecks
 
 ## Code Quality Requirements
 
@@ -524,8 +608,9 @@ Before releasing claims:
 2. No regressions - don't break existing functionality
 3. Log changes via `scrum_changelog_log`
 4. Attach evidence via `scrum_evidence_attach`
-5. Keep changes small and focused
-6. Review your own code before finishing
+5. Check compliance via `scrum_compliance_check(taskId, agentId)`
+6. Keep changes small and focused
+7. Review your own code before finishing
 
 Optimise for correctness, not speed. Ask the user if uncertain.
 
@@ -595,7 +680,34 @@ scrum_sprint_create(taskId, goal: "Integration goal")
 6. **Leave**: `scrum_sprint_leave(sprintId, agentId)`
 
 ### Key Rule
-**Always check `scrum_sprint_context()` before starting work** - this shows what teammates decided and built.</pre>
+**Always check `scrum_sprint_context()` before starting work** - this shows what teammates decided and built.
+
+## Pre-Commit Enforcement
+
+Git hooks validate SCRUM compliance before every commit:
+- Modified undeclared files → **BLOCKED**
+- Touched boundary files → **BLOCKED**
+- No evidence (strict mode) → **BLOCKED**
+
+### FORBIDDEN Commands
+- `git commit --no-verify` ❌
+- `SCRUM_PRECOMMIT_SKIP=true` ❌
+
+### Before Committing
+```
+scrum_compliance_check(taskId, agentId)  # Check score
+git commit -m "message"                   # Hook validates
+```
+
+## v0.5.1 Consolidated Tools
+
+```
+scrum_blocker(action: "add|resolve|list", ...)
+scrum_dependency(action: "add|remove|get|check", ...)
+scrum_metrics(type: "board|velocity|aging|task", ...)
+scrum_comment_add(taskId, agentId, content)
+scrum_comments_list(taskId)
+```</pre>
             </div>
           </div>
         </div>
@@ -627,18 +739,22 @@ scrum_sprint_create(taskId, goal: "Integration goal")
           </div>
 
           <div class="prompt-section">
-            <h3>Available MCP Tools</h3>
+            <h3>Available MCP Tools (32 in v0.5.1)</h3>
             <p>Once configured, agents will have access to these SCRUM MCP tools:</p>
             <div class="prompt-block" style="max-height: none;">
               <pre style="max-height: none;">## Core Tools
 
-scrum_status()              # Check server status
+scrum_status(profile?)      # Check server status (profile: solo|team|full)
 scrum_task_list()           # List all tasks
 scrum_task_create()         # Create a new task
+scrum_task_get()            # Get task details
+scrum_task_update()         # Update task status/fields
+scrum_board()               # Kanban board view
 scrum_intent_post()         # Declare intent before claiming
 scrum_overlap_check()       # Check for file conflicts
 scrum_claim()               # Claim files for editing
 scrum_claim_release()       # Release file claims
+scrum_claim_extend()        # Extend claim TTL
 scrum_claims_list()         # List all active claims
 
 ## Evidence & Changelog
@@ -646,6 +762,20 @@ scrum_claims_list()         # List all active claims
 scrum_evidence_attach()     # Attach proof of work
 scrum_changelog_log()       # Log a file change
 scrum_changelog_search()    # Search change history
+scrum_dead_work()           # Find stale/abandoned work
+
+## Compliance (CRITICAL!)
+
+scrum_compliance_check()    # Check compliance before commit
+                            # Returns: { compliant, score, issues }
+
+## Consolidated Tools (v0.5.1)
+
+scrum_blocker(action)       # add | resolve | list
+scrum_dependency(action)    # add | remove | get | check
+scrum_metrics(type)         # board | velocity | aging | task
+scrum_comment_add()         # Add task discussion
+scrum_comments_list()       # List task comments
 
 ## Sprint Tools (Multi-Agent Collaboration)
 
@@ -655,15 +785,19 @@ scrum_sprint_context()      # Get full sprint context (CALL BEFORE CODING!)
 scrum_sprint_share()        # Share decisions, interfaces, discoveries
 scrum_sprint_check()        # Periodic sync with teammates
 scrum_sprint_leave()        # Leave when done
+scrum_sprint_get()          # Get sprint by ID or taskId
+scrum_sprint_list()         # List sprints
 scrum_sprint_members()      # List sprint members
 scrum_sprint_shares()       # List shared context
+scrum_sprint_complete()     # Mark sprint complete
 
 ## Workflow Enforcement
 
-- claim() fails without prior intent_post()
-- claim_release() fails without prior evidence_attach()
+- claim() fails without prior intent_post() → NO_INTENT error
+- claim_release() fails without prior evidence_attach() → NO_EVIDENCE error
 - acceptanceCriteria is required (min 10 chars)
-- Sprint tools disabled if SCRUM_SPRINT_ENABLED=false
+- Pre-commit hooks validate compliance_check before commits
+- NEVER use git commit --no-verify (bypasses enforcement)
 - All operations are logged and auditable</pre>
             </div>
           </div>
