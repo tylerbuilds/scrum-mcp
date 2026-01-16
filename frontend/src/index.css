@@ -56,3 +56,77 @@ pre {
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(87 83 78);
 }
+
+/* Smooth transitions for interactive elements */
+button,
+a,
+input,
+select {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Card hover glow effect */
+.hover-glow {
+  position: relative;
+}
+
+.hover-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(163, 230, 53, 0.1));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.hover-glow:hover::before {
+  opacity: 1;
+}
+
+/* Subtle text glow for emphasis */
+.text-glow {
+  text-shadow: 0 0 20px currentColor;
+}
+
+/* Press effect for buttons */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Gradient text helper */
+.gradient-text {
+  background: linear-gradient(135deg, #fbbf24, #fb923c, #a3e635);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Animated border gradient */
+@keyframes border-glow {
+  0%, 100% {
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+  50% {
+    border-color: rgba(251, 191, 36, 0.6);
+  }
+}
+
+.animate-border-glow {
+  animation: border-glow 2s ease-in-out infinite;
+}
+
+/* Glass morphism helper */
+.glass {
+  background: rgba(12, 11, 9, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(68, 64, 60, 0.5);
+}
+
+/* Selection styling */
+::selection {
+  background: rgba(251, 191, 36, 0.3);
+  color: inherit;
+}

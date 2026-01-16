@@ -7,7 +7,7 @@ import { ConflictRadar } from '../components/dashboard/ConflictRadar';
 import { ComplianceSummary } from '../components/dashboard/ComplianceSummary';
 import { TaskQueue } from '../components/dashboard/TaskQueue';
 import { TaskDetailModal } from '../components/dashboard/TaskDetailModal';
-import { PulseIndicator } from '../components/dashboard/AnimatedCard';
+import { PulseIndicator, MetricValue, StaggeredContainer, StaggeredItem } from '../components/dashboard/AnimatedCard';
 import { CommandPalette, useCommandPalette } from '../components/dashboard/CommandPalette';
 import { LobbyFeed } from '../components/lobby/LobbyFeed';
 import { SearchBar } from '../components/dashboard/SearchBar';
@@ -82,36 +82,72 @@ export function ControlRoomPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2">
-                  <Activity className="w-4 h-4 text-amber-400" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-stone-500">Active Agents</p>
-                    <p className="text-base font-semibold text-stone-100">{activeAgents}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2">
-                  <Activity className="w-4 h-4 text-lime-400" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-stone-500">Active Tasks</p>
-                    <p className="text-base font-semibold text-stone-100">{activeTasks}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2">
-                  <Activity className="w-4 h-4 text-orange-400" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-stone-500">Queue</p>
-                    <p className="text-base font-semibold text-stone-100">{queuedTasks}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2">
-                  <Activity className="w-4 h-4 text-rose-400" />
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-stone-500">Claims</p>
-                    <p className="text-base font-semibold text-stone-100">{claimCount}</p>
-                  </div>
-                </div>
-              </div>
+              <StaggeredContainer className="flex flex-wrap items-center gap-3" staggerDelay={0.08}>
+                <StaggeredItem>
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2 cursor-default hover:border-amber-500/50 hover:bg-stone-900 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-amber-500/10">
+                      <Activity className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-500">Active Agents</p>
+                      <p className="text-base font-semibold text-stone-100">
+                        <MetricValue value={activeAgents} />
+                      </p>
+                    </div>
+                  </motion.div>
+                </StaggeredItem>
+                <StaggeredItem>
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2 cursor-default hover:border-lime-500/50 hover:bg-stone-900 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-lime-500/10">
+                      <Activity className="w-4 h-4 text-lime-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-500">Active Tasks</p>
+                      <p className="text-base font-semibold text-stone-100">
+                        <MetricValue value={activeTasks} />
+                      </p>
+                    </div>
+                  </motion.div>
+                </StaggeredItem>
+                <StaggeredItem>
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2 cursor-default hover:border-orange-500/50 hover:bg-stone-900 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-orange-500/10">
+                      <Activity className="w-4 h-4 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-500">Queue</p>
+                      <p className="text-base font-semibold text-stone-100">
+                        <MetricValue value={queuedTasks} />
+                      </p>
+                    </div>
+                  </motion.div>
+                </StaggeredItem>
+                <StaggeredItem>
+                  <motion.div
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    className="flex items-center gap-3 rounded-xl border border-stone-800 bg-stone-900/70 px-4 py-2 cursor-default hover:border-rose-500/50 hover:bg-stone-900 transition-colors"
+                  >
+                    <div className="p-1.5 rounded-lg bg-rose-500/10">
+                      <Activity className="w-4 h-4 text-rose-400" />
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-stone-500">Claims</p>
+                      <p className="text-base font-semibold text-stone-100">
+                        <MetricValue value={claimCount} />
+                      </p>
+                    </div>
+                  </motion.div>
+                </StaggeredItem>
+              </StaggeredContainer>
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
