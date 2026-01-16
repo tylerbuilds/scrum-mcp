@@ -170,7 +170,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_task_list',
-        description: 'List recent tasks. Returns tasks ordered by creation time (newest first).',
+        description: 'List recent tasks to find pending work or check project status. Use at SESSION START to see what is in progress. Returns tasks newest-first with status counts.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -368,7 +368,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: 'scrum_board',
         description:
-          'Get the kanban board view with tasks grouped by status columns (backlog, todo, in_progress, review, done).',
+          'Get the kanban board for a visual overview of all work. Use to identify bottlenecks (too many in_progress) or find available tasks (backlog/todo). Returns tasks grouped by: backlog, todo, in_progress, review, done.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -380,7 +380,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_comment_add',
-        description: 'Add a comment to a task for discussion or notes.',
+        description: 'Add a comment to a task for discussion, decisions, or questions. Use comments to record rationale that other agents can reference. Comments appear in task detail and are preserved for knowledge sharing.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -393,7 +393,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_comments_list',
-        description: 'List comments on a task.',
+        description: 'List all comments on a task to review discussions, decisions, and context. Use BEFORE starting work to understand rationale from previous agents.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -406,7 +406,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // ==================== BLOCKERS (Consolidated) ====================
       {
         name: 'scrum_blocker',
-        description: 'Manage blockers on tasks. Actions: add (report blocker), resolve (clear blocker), list (view blockers).',
+        description: 'Manage blockers that prevent task progress. Actions: add (report why task is stuck - include description), resolve (clear blocker when fixed), list (see all blockers on a task). Blockers are visible on the board and in task detail.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -424,7 +424,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // ==================== DEPENDENCIES (Consolidated) ====================
       {
         name: 'scrum_dependency',
-        description: 'Manage task dependencies. Actions: add (create dependency), remove (delete), get (list dependencies), check (verify task is ready).',
+        description: 'Manage task dependencies (task X requires task Y to complete first). Actions: add (create dependency), remove (delete), get (list what this task depends on), check (verify all dependencies are done - call BEFORE starting work on a task).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -439,7 +439,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // ==================== METRICS (Consolidated) ====================
       {
         name: 'scrum_metrics',
-        description: 'Get metrics. Types: board (cycle/lead time, throughput), velocity (story points over time), aging (stuck tasks), task (single task metrics).',
+        description: 'Get workflow metrics to monitor team health. Types: board (cycle time and throughput for flow optimization), velocity (story points over time for capacity planning), aging (tasks stuck too long for bottleneck detection), task (single task analysis with time breakdowns).',
         inputSchema: {
           type: 'object',
           properties: {
@@ -495,7 +495,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_sprint_get',
-        description: 'Get a sprint by ID or find the active sprint for a task. Provide either sprintId or taskId.',
+        description: 'Get sprint details including members, goal, and status. Provide sprintId for direct lookup, or taskId to find the active sprint for a task. Returns full sprint with member list, share counts, and progress summary.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -507,7 +507,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_sprint_list',
-        description: 'List sprints with optional filters.',
+        description: 'List sprints to find active collaborations. Use to check if a sprint already exists for a task before creating a new one. Filter by status (active/completed) or taskId.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -519,7 +519,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_sprint_complete',
-        description: 'Mark a sprint as completed.',
+        description: 'Complete a sprint when multi-agent work is finished. Completed sprints preserve all decisions, interfaces, and discoveries for future reference. Call this AFTER all agents have left.',
         inputSchema: {
           type: 'object',
           properties: {
