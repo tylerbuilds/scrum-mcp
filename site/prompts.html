@@ -269,111 +269,134 @@
             </div>
             <pre id="setup-prompt">Install and configure SCRUM MCP for multi-agent coordination across all my AI coding tools.
 
+## Prerequisites Check
+
+First verify these are installed:
+- Node.js 20+ (run: node --version)
+- npm (run: npm --version)
+- git (run: git --version)
+
+If any are missing, stop and tell me what to install.
+
 ## Step 1: Install SCRUM MCP
 
-1. Clone the repo to ~/.scrum-mcp (or use existing if present)
-2. Run npm install && npm run build
-3. Verify the build succeeded
+git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp
+cd ~/.scrum-mcp
+npm install
+npm run build
+
+If ~/.scrum-mcp already exists, do: cd ~/.scrum-mcp && git pull && npm install && npm run build
+
+Verify build succeeded (dist/mcp.js should exist).
 
 ## Step 2: Configure MCP Server
 
-Add SCRUM MCP to my Claude Code MCP config (~/.claude/settings.json or similar):
+Find my Claude Code MCP config. Check these locations in order:
+1. ~/.claude.json (newer versions)
+2. ~/.config/claude-code/settings.json
+3. Look for existing mcpServers config
 
-```json
-{
-  "mcpServers": {
-    "scrum": {
-      "command": "node",
-      "args": ["~/.scrum-mcp/dist/mcp.js"],
-      "env": {
-        "SCRUM_DB_PATH": "~/.scrum/scrum.sqlite"
-      }
-    }
+**IMPORTANT**: Use ABSOLUTE paths, not ~. Get my home directory first: echo $HOME
+
+Add this to the mcpServers object (merge, don't replace):
+
+"scrum": {
+  "command": "node",
+  "args": ["/ABSOLUTE/PATH/TO/.scrum-mcp/dist/mcp.js"],
+  "env": {
+    "SCRUM_DB_PATH": "/ABSOLUTE/PATH/TO/.scrum/scrum.sqlite"
   }
 }
-```
 
-Expand ~ to my actual home directory. Merge with existing config, don't overwrite.
+Replace /ABSOLUTE/PATH/TO with my actual home directory (e.g., /home/username or /Users/username).
 
-## Step 3: Test Installation
+Create ~/.scrum directory if it doesn't exist: mkdir -p ~/.scrum
 
-After configuring, call scrum_status() to verify the server responds.
-If it fails, troubleshoot and fix before proceeding.
+## Step 3: Restart Required
 
-## Step 4: Scan for Installed IDEs/CLIs
+Tell me: "MCP config updated. Please restart Claude Code for the SCRUM MCP server to load, then say 'continue' to proceed."
 
-Check for these tools and their config locations:
+WAIT for my response before continuing.
 
-| Tool | Config Location | Config Type |
-|------|-----------------|-------------|
-| Claude Code | ~/.claude/CLAUDE.md | Markdown |
-| Cursor | ~/.cursor/rules.md OR project .cursorrules | Markdown |
-| Continue | ~/.continue/config.json | JSON (systemMessage field) |
-| Gemini CLI | ~/.config/gemini-cli/config.json | JSON |
-| OpenCode | ~/.config/opencode/config.json | JSON |
-| Antigravity | ~/.antigravity/settings.json | JSON |
-| Codex | ~/.codex/instructions.md | Markdown |
-| Windsurf | ~/.windsurf/global_rules.md | Markdown |
-| Aider | ~/.aider/aider.conf.yml | YAML (system-prompt field) |
+## Step 4: Test Installation
 
-For each tool found, note its config file path.
+After I confirm restart, call scrum_status() to verify it works.
 
-## Step 5: Add SCRUM Prompts (PRESERVE EXISTING)
+If it fails:
+- Check the MCP config paths are absolute (no ~)
+- Check dist/mcp.js exists
+- Check node is in PATH
+- Report the specific error
 
-For each found tool, add the SCRUM MCP section to its config:
+## Step 5: Scan for Installed IDEs/CLIs
 
-**CRITICAL: Do NOT overwrite or remove existing content.**
-- Read the existing file first
-- Find a suitable location (end of file, or after similar sections)
-- Insert the SCRUM section with clear delimiters
-- For JSON files, merge into the appropriate field
+Check if these config FILES exist (not just directories):
 
-### SCRUM Section to Add:
+| Tool | Global Config | Check Command |
+|------|---------------|---------------|
+| Claude Code | ~/.claude/CLAUDE.md | ls ~/.claude/CLAUDE.md |
+| Cursor | ~/.cursor/rules/rules.md | ls ~/.cursor/rules/rules.md |
+| Windsurf | ~/.codeium/windsurf/memories/global_rules.md | ls that path |
+| Continue | ~/.continue/config.json | ls ~/.continue/config.json |
+| Aider | ~/.aider.conf.yml | ls ~/.aider.conf.yml |
 
-```markdown
+For Cursor/Windsurf, also note they use per-project .cursorrules/.windsurfrules files.
+
+Report which configs exist. Skip tools whose configs don't exist (don't create new ones).
+
+## Step 6: Add SCRUM Prompts (PRESERVE EXISTING)
+
+For each EXISTING config file found:
+
+1. **Back it up first**: cp {file} {file}.backup
+2. Read the current contents
+3. Check if "SCRUM MCP" section already exists - if so, skip (already configured)
+4. Append the SCRUM section at the END of the file
+
+### For Markdown files (CLAUDE.md, rules.md, etc.):
+
+Append this exact text:
+
 ---
 
 ## SCRUM MCP - Multi-Agent Coordination (v0.5.2)
 
-**Use SCRUM MCP for any code changes.** Multiple agents may work on this codebase simultaneously.
+Use SCRUM MCP for any code changes. Multiple agents may work simultaneously.
 
-### Session Startup
-```
-scrum_context()  # Returns status, tasks, claims, board, profile suggestion
-```
+Session Startup: scrum_context()
+Start Work: scrum_start_work(taskId, agentId, files, acceptanceCriteria)
+Log Changes: scrum_changelog_log(agentId, filePath, changeType, summary)
+Finish Work: scrum_finish_work(taskId, agentId, command, output)
 
-### Quick Workflow
-```
-scrum_start_work(taskId, agentId, files, acceptanceCriteria)  # Start
-scrum_changelog_log(agentId, filePath, changeType, summary)   # Log changes
-scrum_finish_work(taskId, agentId, command, output)           # Finish
-```
+Agent Naming: {tool}-{role}-{shortId} (e.g., claude-worker-api-a1b2)
 
-### Agent Naming
-Use pattern: `{tool}-{role}-{shortId}` (e.g., `claude-worker-api-a1b2`)
+Orchestration:
+- scrum_orchestrate_start(taskId, orchestratorId, goal, workers)
+- scrum_worker_complete(sprintId, agentId, status, result)
+- scrum_orchestrate_status(sprintId)
 
-### Orchestration (Parallel Workers)
-```
-scrum_orchestrate_start(taskId, orchestratorId, goal, workers)  # Spawn workers
-scrum_worker_complete(sprintId, agentId, status, result)        # Signal done
-scrum_orchestrate_status(sprintId)                              # Monitor
-```
+Rules: NEVER use git commit --no-verify. ALWAYS run scrum_compliance_check before commits.
 
-### Rules
-- NEVER use `git commit --no-verify`
-- ALWAYS call scrum_compliance_check before commits
-```
+### For Continue (config.json):
 
-## Step 6: Report Results
+Find or create the "systemMessage" field and append the SCRUM text to its value.
 
-After completing, report:
-1. SCRUM MCP installation status (success/failed)
-2. MCP config location and status
-3. List of tools found and their config files
-4. Which configs were updated
-5. Any errors or tools that couldn't be configured
+### For Aider (.aider.conf.yml):
 
-Test scrum_status() one more time to confirm everything works.</pre>
+Add under a system-prompt key if it exists, or create one.
+
+## Step 7: Report Results
+
+Report:
+1. Prerequisites: all met / what's missing
+2. SCRUM MCP: installed at {path} / build status
+3. MCP Config: updated at {path}
+4. Tools found: list each with config path
+5. Configs updated: list each (or "skipped - already has SCRUM" / "skipped - no config file")
+6. Backups created: list .backup files
+7. Final test: scrum_status() result
+
+If anything failed, explain what went wrong and how to fix it manually.</pre>
           </div>
         </div>
 
