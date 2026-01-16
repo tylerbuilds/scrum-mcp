@@ -53,6 +53,7 @@
           <a href="#features">Features</a>
           <a href="/what-is-mcp.html">What is MCP?</a>
           <a href="#workflow">Workflow</a>
+          <a href="#hooks">Git Hooks</a>
           <a href="/prompts.html">Prompts</a>
           <a href="/case-study.html">Case Study</a>
           <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a>
@@ -91,7 +92,7 @@
             </a>
           </div>
           <div class="hero-tags">
-            <span>Works with Claude Code, Cursor, Continue</span>
+            <span>Works with Claude Code, Cursor, Continue, Gemini CLI, OpenCode, Antigravity</span>
             <span>MIT licensed | Local-first</span>
           </div>
           <div class="stats">
@@ -429,7 +430,49 @@ npm run mcp
       </div>
     </section>
 
-    <section id="ops" class="section section-alt">
+    <section id="hooks" class="section section-alt">
+      <div class="container mcp-grid">
+        <div class="mcp-copy" data-reveal>
+          <p class="eyebrow">Enforce at commit</p>
+          <h2>Git hooks block non-compliant commits.</h2>
+          <p>
+            Pre-commit hooks validate SCRUM compliance before every commit.
+            If you didn't declare intent, didn't claim files, or violated boundaries—the commit is blocked.
+          </p>
+          <ul class="list">
+            <li>Blocks commits with undeclared files</li>
+            <li>Blocks boundary violations (DO NOT TOUCH files)</li>
+            <li>Warns if no evidence attached (strict mode blocks)</li>
+            <li>Graceful fallback when server not running</li>
+          </ul>
+          <div class="mini-cta">
+            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/HOOKS.md"
+              target="_blank" rel="noreferrer">
+              Hook docs
+            </a>
+          </div>
+        </div>
+        <div class="code-card" data-reveal>
+          <div class="code-title">Install hooks</div>
+          <pre><code># Install the pre-commit hook
+./scripts/install-hooks.sh
+
+# Set your task context
+export SCRUM_TASK_ID="task-abc123"
+export SCRUM_AGENT_ID="claude-code-xyz"
+
+# Commit as normal - hook validates compliance
+git add src/feature.ts
+git commit -m "Add feature"
+# ✅ SCRUM compliance passed (score: 100/100)
+
+# Or if you forgot to declare files...
+# ❌ COMPLIANCE FAILED: Undeclared files modified</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <section id="ops" class="section">
       <div class="container ops-grid">
         <div class="ops-copy" data-reveal>
           <p class="eyebrow">Ops ready</p>
@@ -501,11 +544,15 @@ npm run mcp
         <a href="#start">Start</a>
         <a href="#features">Features</a>
         <a href="#workflow">Workflow</a>
+        <a href="#hooks">Git Hooks</a>
         <a href="/prompts.html">Prompts</a>
       </div>
       <div class="footer-links">
         <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md" target="_blank" rel="noreferrer">
           MCP docs
+        </a>
+        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/HOOKS.md" target="_blank" rel="noreferrer">
+          Hook docs
         </a>
         <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/IDE-SETUP.md" target="_blank" rel="noreferrer">
           IDE setup
