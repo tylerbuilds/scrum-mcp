@@ -310,6 +310,8 @@ Check if I already have MCP servers configured:
 - Look for ~/.claude.json or ~/.config/claude-code/settings.json
 - Check if file exists and has "mcpServers" key
 
+**IDEMPOTENCY CHECK:** If mcpServers already contains "scrum", SKIP this step entirely and report "MCP config: already configured (skipped)"
+
 ### If this is my FIRST MCP server (no config file or no mcpServers):
 
 Create ~/.claude.json with this content (replace YOUR_HOME with actual home path like /home/user or /Users/user):
@@ -337,9 +339,10 @@ Read the existing config file, add "scrum" to the mcpServers object (don't remov
 Tell me exactly this:
 
 "SCRUM MCP installed and configured. Please restart Claude Code now:
-1. Press Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux)
-2. Type 'Developer: Reload Window' and press Enter
-3. After reload, say 'continue' to test"
+- If using Claude Code CLI: Exit this session (type 'exit' or Ctrl+C), then run 'claude' again
+- If using Claude Code in VS Code: Press Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux), type 'Developer: Reload Window'
+
+After restarting, come back and say 'continue' to test."
 
 WAIT for my response. Do not proceed until I say continue.
 
@@ -362,9 +365,11 @@ Check if ~/.claude/CLAUDE.md exists.
 
 If NO: Create ~/.claude directory (mkdir -p ~/.claude) and create CLAUDE.md
 
-If YES: Read existing content first
+If YES: Read existing content first, then check if it ALREADY contains "## SCRUM MCP"
 
-Either way, APPEND this to the end of ~/.claude/CLAUDE.md (don't overwrite existing content):
+**IDEMPOTENCY CHECK:** If CLAUDE.md already contains "## SCRUM MCP", SKIP this step entirely and report "System prompt: already configured (skipped)"
+
+If CLAUDE.md exists but does NOT contain "## SCRUM MCP", APPEND this to the end (don't overwrite):
 
 ---
 
@@ -390,8 +395,8 @@ Pattern: claude-{role}-{id} (e.g., claude-worker-api-a1b2, claude-orchestrator-m
 Report:
 1. Node.js version: {version}
 2. SCRUM MCP installed: ~/.scrum-mcp (build: success/failed)
-3. MCP config: {path} (first-time setup / added to existing)
-4. System prompt: ~/.claude/CLAUDE.md (created / updated / already had SCRUM)
+3. MCP config: {path} (first-time setup / added to existing / already had scrum)
+4. System prompt: ~/.claude/CLAUDE.md (created / appended / already had SCRUM - skipped)
 5. Test result: scrum_status() output
 
 If everything passed, say "SCRUM MCP is ready! Try: scrum_context()"</pre>
@@ -409,13 +414,22 @@ If everything passed, say "SCRUM MCP is ready! Try: scrum_context()"</pre>
 
 NOTE: Cursor doesn't support MCP servers directly. SCRUM MCP runs as a REST API that you'll start separately.
 
+## Prerequisites Check
+
+First verify these are installed (run each command):
+- node --version (need Node.js 20+)
+- npm --version
+- git --version
+
+If any command fails or shows old version, stop and tell me what to install.
+
 ## Step 1: Install SCRUM MCP
 
 Check if ~/.scrum-mcp exists:
 - If YES: cd ~/.scrum-mcp && git pull && npm install && npm run build
 - If NO: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
 
-Verify: ls ~/.scrum-mcp/dist/index.js (should exist)
+Verify build succeeded: ls ~/.scrum-mcp/dist/index.js (should exist)
 
 Create data directory: mkdir -p ~/.scrum
 
@@ -447,7 +461,9 @@ For GLOBAL rules, check if ~/.cursor/rules exists:
 - If directory exists, create/edit rules.md inside it
 - If not, we'll use per-project .cursorrules
 
-Create or append to the rules file:
+**IDEMPOTENCY CHECK:** If the rules file already contains "## SCRUM MCP", SKIP this step entirely and report "Rules: already configured (skipped)"
+
+If not already present, create or append to the rules file:
 
 ---
 
@@ -464,21 +480,21 @@ SCRUM server runs at http://localhost:4177. Start it with: ~/.scrum-mcp/start.sh
    curl -X POST http://localhost:4177/api/tasks -H "Content-Type: application/json" -d '{"title":"Your task","description":"Details"}'
 
 3. Post intent (REQUIRED):
-   curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-{your-id}","files":["file.ts"],"acceptanceCriteria":"Tests pass"}'
+   curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-main","files":["file.ts"],"acceptanceCriteria":"Tests pass"}'
 
 4. Claim files:
-   curl -X POST http://localhost:4177/api/claims -H "Content-Type: application/json" -d '{"agentId":"cursor-{your-id}","files":["file.ts"]}'
+   curl -X POST http://localhost:4177/api/claims -H "Content-Type: application/json" -d '{"agentId":"cursor-main","files":["file.ts"]}'
 
 ### After Changes
 
 5. Log changes:
-   curl -X POST http://localhost:4177/api/changelog -H "Content-Type: application/json" -d '{"agentId":"cursor-{your-id}","filePath":"file.ts","changeType":"modify","summary":"What changed"}'
+   curl -X POST http://localhost:4177/api/changelog -H "Content-Type: application/json" -d '{"agentId":"cursor-main","filePath":"file.ts","changeType":"modify","summary":"What changed"}'
 
 6. Attach evidence:
-   curl -X POST http://localhost:4177/api/evidence -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-{your-id}","command":"npm test","output":"All tests passed"}'
+   curl -X POST http://localhost:4177/api/evidence -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-main","command":"npm test","output":"All tests passed"}'
 
 7. Release claims:
-   curl -X DELETE "http://localhost:4177/api/claims/cursor-{your-id}"
+   curl -X DELETE http://localhost:4177/api/claims/cursor-main
 
 ### Agent Naming
 Pattern: cursor-{role}-{id} (e.g., cursor-main-a1b2)
@@ -490,10 +506,11 @@ Pattern: cursor-{role}-{id} (e.g., cursor-main-a1b2)
 ## Step 5: Report
 
 Report:
-1. SCRUM MCP installed: ~/.scrum-mcp
-2. Start script: ~/.scrum-mcp/start.sh (created/exists)
-3. Server test: curl result
-4. Rules file: location (created/updated)
+1. Prerequisites: Node.js {version}, npm {version}, git {version}
+2. SCRUM MCP: ~/.scrum-mcp (build: success/failed)
+3. Start script: ~/.scrum-mcp/start.sh (created/exists)
+4. Server test: curl result
+5. Rules file: {path} (created / appended / already had SCRUM - skipped)
 
 Tell me: "SCRUM MCP installed. Run ~/.scrum-mcp/start.sh before coding, then use the curl commands above."</pre>
             </div>
@@ -510,11 +527,22 @@ Tell me: "SCRUM MCP installed. Run ~/.scrum-mcp/start.sh before coding, then use
 
 NOTE: Windsurf (like Cursor) doesn't support MCP servers directly. SCRUM MCP runs as a REST API.
 
+## Prerequisites Check
+
+First verify these are installed (run each command):
+- node --version (need Node.js 20+)
+- npm --version
+- git --version
+
+If any command fails or shows old version, stop and tell me what to install.
+
 ## Step 1: Install SCRUM MCP
 
 Check if ~/.scrum-mcp exists:
 - If YES: cd ~/.scrum-mcp && git pull && npm install && npm run build
 - If NO: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Verify build succeeded: ls ~/.scrum-mcp/dist/index.js (should exist)
 
 Create data directory: mkdir -p ~/.scrum
 
@@ -538,9 +566,11 @@ Test: curl http://localhost:4177/api/status
 Windsurf uses .windsurfrules for project rules and has global rules at:
 ~/.codeium/windsurf/memories/global_rules.md
 
-Check if that path exists. If yes, append to it. If no, create the directories and file.
+Check if that path exists. If yes, read the content first. If no, create the directories and file.
 
-Append this content:
+**IDEMPOTENCY CHECK:** If global_rules.md already contains "## SCRUM MCP", SKIP this step entirely and report "Rules: already configured (skipped)"
+
+If not already present, append this content:
 
 ---
 
@@ -565,10 +595,11 @@ Pattern: windsurf-{role}-{id}
 
 ## Step 5: Report
 
-1. SCRUM MCP: installed at ~/.scrum-mcp
-2. Start script: ~/.scrum-mcp/start.sh
-3. Global rules: path and status
-4. Server test: result
+1. Prerequisites: Node.js {version}, npm {version}, git {version}
+2. SCRUM MCP: ~/.scrum-mcp (build: success/failed)
+3. Start script: ~/.scrum-mcp/start.sh
+4. Server test: curl result
+5. Global rules: {path} (created / appended / already had SCRUM - skipped)
 
 Done message: "SCRUM ready. Run ~/.scrum-mcp/start.sh then code!"</pre>
             </div>
@@ -605,7 +636,9 @@ Get home directory: echo $HOME (use this absolute path below)
 For Gemini CLI, check/create ~/.config/gemini-cli/config.json
 For Antigravity, check/create ~/.antigravity/mcp.json
 
-Add this MCP server config (replace YOUR_HOME with actual path like /home/user):
+**IDEMPOTENCY CHECK:** If the config file already contains "scrum" in mcpServers, SKIP the MCP config step and report "MCP config: already configured (skipped)"
+
+If not already present, add this MCP server config (replace YOUR_HOME with actual path like /home/user):
 
 {
   "mcpServers": {
@@ -619,7 +652,7 @@ Add this MCP server config (replace YOUR_HOME with actual path like /home/user):
   }
 }
 
-If the file already exists with other servers, merge this into the existing mcpServers object.
+If the file already exists with other servers (but no "scrum"), merge this into the existing mcpServers object.
 
 ## Step 3: Restart and Test
 
@@ -637,7 +670,9 @@ Find where your tool stores system instructions/rules.
 For Gemini CLI: Usually in config.json under "systemInstruction"
 For Antigravity: Check ~/.antigravity/settings.json or similar
 
-Add this to the system instructions:
+**IDEMPOTENCY CHECK:** If system instructions already contain "## SCRUM MCP", SKIP this step and report "System instructions: already configured (skipped)"
+
+If not already present, add this to the system instructions:
 
 ---
 
@@ -660,10 +695,10 @@ Pattern: gemini-{role}-{id} or antigravity-{role}-{id}
 
 ## Step 5: Report
 
-1. Prerequisites: all met?
-2. SCRUM MCP: ~/.scrum-mcp (build status)
-3. MCP config: path and status
-4. System instructions: updated?
+1. Prerequisites: Node.js {version}, npm {version}, git {version}
+2. SCRUM MCP: ~/.scrum-mcp (build: success/failed)
+3. MCP config: {path} (created / merged / already had scrum - skipped)
+4. System instructions: {path} (created / appended / already had SCRUM - skipped)
 5. Test: scrum_status() result
 
 Success: "SCRUM MCP ready! Test with scrum_context()"</pre>
@@ -697,7 +732,9 @@ Get absolute home path: echo $HOME
 
 Read existing config (or start fresh if none exists).
 
-Add to the "experimental" > "modelContextProtocolServers" array (create if needed):
+**IDEMPOTENCY CHECK:** If config already has a modelContextProtocolServers entry with "scrum-mcp/dist/mcp.js" in args, SKIP this step and report "MCP config: already configured (skipped)"
+
+If not already present, add to the "experimental" > "modelContextProtocolServers" array (create if needed):
 
 {
   "experimental": {
@@ -720,7 +757,11 @@ Replace YOUR_HOME with absolute path. Merge with existing config.
 
 ## Step 3: Add System Message
 
-In the same config.json, find or create "systemMessage" field and append:
+In the same config.json, find or create "systemMessage" field.
+
+**IDEMPOTENCY CHECK:** If systemMessage already contains "SCRUM MCP", SKIP this step and report "System message: already configured (skipped)"
+
+If not already present, append to systemMessage:
 
 "Use SCRUM MCP for code changes. Workflow: scrum_context() at start, scrum_start_work() before changes, scrum_changelog_log() after edits, scrum_finish_work() when done. Agent naming: continue-{role}-{id}. Never use git commit --no-verify."
 
@@ -730,10 +771,10 @@ Restart Continue (or VS Code), then test: scrum_status()
 
 ## Step 5: Report
 
-1. SCRUM MCP: ~/.scrum-mcp (build status)
-2. Continue config: ~/.continue/config.json (updated)
-3. MCP server: added to modelContextProtocolServers
-4. System message: updated
+1. Prerequisites: Node.js {version}, npm {version}, git {version}
+2. SCRUM MCP: ~/.scrum-mcp (build: success/failed)
+3. MCP config: ~/.continue/config.json (added / already had scrum - skipped)
+4. System message: (appended / already had SCRUM - skipped)
 5. Test: scrum_status() result
 
 Success: "SCRUM MCP configured in Continue!"</pre>
@@ -780,7 +821,11 @@ Test: curl http://localhost:4177/api/status
 
 Aider uses ~/.aider.conf.yml for global config.
 
-Create or edit that file, add:
+Check if this file exists. If yes, read the content first.
+
+**IDEMPOTENCY CHECK:** If ~/.aider.conf.yml already contains "## SCRUM MCP", SKIP this step and report "Aider config: already configured (skipped)"
+
+If not already present, create or edit that file, add:
 
 system-prompt: |
   ## SCRUM MCP Coordination
@@ -790,10 +835,10 @@ system-prompt: |
   Before changes:
   - Check claims: curl http://localhost:4177/api/claims
   - Post intent: curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"...","agentId":"aider-main","files":[...],"acceptanceCriteria":"..."}'
-  - Claim files: curl -X POST http://localhost:4177/api/claims -d '{"agentId":"aider-main","files":[...]}'
+  - Claim files: curl -X POST http://localhost:4177/api/claims -H "Content-Type: application/json" -d '{"agentId":"aider-main","files":[...]}'
 
   After changes:
-  - Log: curl -X POST http://localhost:4177/api/changelog -d '{"agentId":"aider-main","filePath":"...","changeType":"modify","summary":"..."}'
+  - Log: curl -X POST http://localhost:4177/api/changelog -H "Content-Type: application/json" -d '{"agentId":"aider-main","filePath":"...","changeType":"modify","summary":"..."}'
   - Release: curl -X DELETE http://localhost:4177/api/claims/aider-main
 
   Agent naming: aider-{role}-{id}
@@ -801,10 +846,11 @@ system-prompt: |
 
 ## Step 5: Report
 
-1. SCRUM MCP: ~/.scrum-mcp
-2. Start script: created
-3. Server test: result
-4. Aider config: ~/.aider.conf.yml updated
+1. Prerequisites: Node.js {version}, npm {version}, git {version}
+2. SCRUM MCP: ~/.scrum-mcp (build: success/failed)
+3. Start script: ~/.scrum-mcp/start.sh (created/exists)
+4. Server test: curl result
+5. Aider config: ~/.aider.conf.yml (created / appended / already had SCRUM - skipped)
 
 Done: "Start SCRUM server with ~/.scrum-mcp/start.sh before running Aider"</pre>
             </div>
@@ -1584,39 +1630,24 @@ scrum_orchestrate_status()  # Get orchestration progress
     </section>
   </main>
   <footer class="site-footer">
-    <div class="container footer-grid">
-      <div>
-        <a href="/" class="brand">
-          <span class="brand-mark">SCRUM</span>
-          <span class="brand-sub">MCP</span>
-        </a>
-        <p>Local-first coordination for multi-agent software teams.</p>
-      </div>
-      <div class="footer-links">
+    <div class="container footer-inner">
+      <a href="/" class="brand">
+        <span class="brand-mark">SCRUM</span>
+        <span class="brand-sub">MCP</span>
+      </a>
+      <nav class="footer-nav">
         <a href="/#start">Start</a>
         <a href="/#features">Features</a>
+        <a href="/what-is-mcp.html">What is MCP?</a>
         <a href="/prompts.html">Prompts</a>
-      </div>
-      <div class="footer-links">
-        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md" target="_blank" rel="noreferrer">
-          MCP docs
-        </a>
-        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/IDE-SETUP.md" target="_blank" rel="noreferrer">
-          IDE setup
-        </a>
-        <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/SECURITY.md" target="_blank" rel="noreferrer">
-          Security
-        </a>
-        <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
-          GitHub
-        </a>
-      </div>
+        <a href="/case-study.html">Case Study</a>
+        <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a>
+      </nav>
       <div class="footer-meta">
-        <p>MIT license. Copyright <a href="https://tylerbuilds.com" target="_blank" rel="noreferrer">Tyler Casey</a> 2026.</p>
-        <p>Proudly built with <a href="https://claude.com/claude-code" target="_blank" rel="noreferrer">Claude Code</a> (Opus 4.5)</p>
-        <a class="btn btn-ghost btn-x" href="https://x.com/TylerIsBuilding" target="_blank" rel="noreferrer">
-          Follow me on X
-        </a>
+        <span>MIT license</span>
+        <span>© <a href="https://tylerbuilds.com" target="_blank" rel="noreferrer">Tyler Casey</a> 2026</span>
+        <span>Built with <a href="https://claude.ai/claude-code" target="_blank" rel="noreferrer">Claude Code</a></span>
+        <a href="https://x.com/TylerIsBuilding" target="_blank" rel="noreferrer">@TylerIsBuilding</a>
       </div>
     </div>
   </footer>
