@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+
+<head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-H4HSCLEH37"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-H4HSCLEH37');
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>What is MCP? - Model Context Protocol Explained | SCRUM MCP</title>
+  <meta name="description"
+    content="Learn what MCP (Model Context Protocol) is, how it enables AI agents to use tools, and how SCRUM MCP coordinates multiple agents working together." />
+  <meta property="og:title" content="What is MCP? - Model Context Protocol Explained" />
+  <meta property="og:description"
+    content="A beginner-friendly guide to MCP and how it enables AI agents to coordinate through SCRUM." />
+  <meta property="og:type" content="article" />
+  <meta property="og:url" content="https://scrum.tylerbuilds.com/what-is-mcp.html" />
+  <meta name="theme-color" content="#f6f1ea" />
+  <script>
+    document.documentElement.classList.add('js');
+  </script>
+  <link rel="canonical" href="https://scrum.tylerbuilds.com/what-is-mcp.html" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <div class="brand">
+        <a href="/" style="text-decoration: none; color: inherit;">
+          <span class="brand-mark">SCRUM</span>
+          <span class="brand-sub">MCP</span>
+        </a>
+      </div>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav"
+        aria-label="Open menu">
+        <span class="nav-toggle-line"></span>
+        <span class="nav-toggle-line"></span>
+        <span class="nav-toggle-line"></span>
+      </button>
+      <div class="nav-panel" id="primary-nav">
+        <nav class="nav" aria-label="Primary">
+          <a href="/">Home</a>
+          <a href="/what-is-mcp.html" class="active">What is MCP?</a>
+          <a href="/prompts.html">Prompts</a>
+          <a href="/case-study.html">Case Study</a>
+          <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a>
+        </nav>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+            View repo
+          </a>
+          <a class="btn btn-primary" href="/#start">Get started</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section section-hero-small">
+      <div class="container">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow">Beginner's Guide</p>
+          <h1>What is MCP?</h1>
+          <p class="lead">
+            MCP (Model Context Protocol) is how AI agents talk to external tools.
+            It's the bridge between "AI that chats" and "AI that does things."
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container content-narrow">
+        <article class="prose" data-reveal>
+
+          <h2>The Problem: AI Can Think, But Can't Do</h2>
+          <p>
+            AI models like Claude, GPT, and Gemini are incredibly capable at reasoning and generating text.
+            But by themselves, they can't:
+          </p>
+          <ul>
+            <li>Read files on your computer</li>
+            <li>Run terminal commands</li>
+            <li>Search your codebase</li>
+            <li>Make API calls</li>
+            <li>Coordinate with other agents</li>
+          </ul>
+          <p>
+            They're brilliant minds trapped in a text box.
+          </p>
+
+          <h2>The Solution: MCP (Model Context Protocol)</h2>
+          <p>
+            <strong>MCP</strong> is an open protocol created by Anthropic that lets AI models call external tools.
+            Think of it like giving the AI a set of function buttons it can press.
+          </p>
+
+          <div class="code-card" style="margin: 2rem 0;">
+            <div class="code-header"><span>How MCP Works</span></div>
+            <pre><code>1. AI decides it needs to read a file
+2. AI calls: read_file(path="src/app.ts")
+3. MCP server executes the request
+4. Result returns to AI
+5. AI continues with the information</code></pre>
+          </div>
+
+          <p>
+            MCP servers expose <strong>tools</strong> (functions the AI can call) and <strong>resources</strong>
+            (data the AI can read). Any application that speaks the MCP protocol can connect to these servers.
+          </p>
+
+          <h2>MCP Clients (Who Uses MCP)</h2>
+          <p>
+            These applications have built-in MCP support, meaning they can connect to MCP servers:
+          </p>
+          <ul>
+            <li><strong>Claude Code</strong> - Anthropic's CLI for coding with Claude</li>
+            <li><strong>Claude Desktop</strong> - The desktop app</li>
+            <li><strong>Cursor</strong> - AI-native code editor</li>
+            <li><strong>Continue</strong> - VS Code extension</li>
+            <li><strong>Windsurf</strong> - AI coding environment</li>
+            <li><strong>Google AntiGravity</strong> - Google's agentic coding tool</li>
+          </ul>
+
+          <h2>MCP Servers (What Tools Exist)</h2>
+          <p>
+            MCP servers provide tools for specific purposes. Some examples:
+          </p>
+          <ul>
+            <li><strong>Filesystem</strong> - Read and write files</li>
+            <li><strong>Git</strong> - Version control operations</li>
+            <li><strong>Database</strong> - Query databases</li>
+            <li><strong>Web</strong> - Fetch URLs, search the web</li>
+            <li><strong>SCRUM MCP</strong> - Multi-agent coordination</li>
+          </ul>
+
+          <h2>The Multi-Agent Problem</h2>
+          <p>
+            Here's where it gets interesting. With MCP, you can now have multiple AI agents working on the same codebase.
+            But this creates new problems:
+          </p>
+          <ul>
+            <li><strong>Collisions</strong> - Two agents editing the same file</li>
+            <li><strong>Lost work</strong> - Agent A overwrites Agent B's changes</li>
+            <li><strong>No communication</strong> - Agents don't know what others are doing</li>
+            <li><strong>No accountability</strong> - Who changed what and why?</li>
+          </ul>
+
+          <div class="highlight-box" style="background: var(--accent-warm-light); padding: 1.5rem; border-radius: 8px; margin: 2rem 0;">
+            <p style="margin: 0; font-weight: 500;">
+              This is exactly what SCRUM MCP solves.
+            </p>
+          </div>
+
+          <h2>How SCRUM MCP Works</h2>
+          <p>
+            SCRUM MCP is an MCP server that provides <strong>coordination tools</strong> for multi-agent teams.
+            It's like giving your AI agents a shared whiteboard and a file locking system.
+          </p>
+
+          <h3>The Workflow</h3>
+          <ol>
+            <li><strong>Declare Intent</strong> - Agent announces what files it plans to change</li>
+            <li><strong>Claim Files</strong> - Agent locks the files so others can't edit</li>
+            <li><strong>Make Changes</strong> - Agent does the work</li>
+            <li><strong>Attach Evidence</strong> - Agent proves the work is done (test output, etc.)</li>
+            <li><strong>Release Claims</strong> - Agent unlocks files for others</li>
+          </ol>
+
+          <h3>Sprint Collaboration (v0.5.0)</h3>
+          <p>
+            When multiple agents work on the same task, they can join a <strong>Sprint</strong>—a shared context space where they:
+          </p>
+          <ul>
+            <li>Share <strong>decisions</strong> about architecture</li>
+            <li>Publish <strong>interfaces</strong> they're creating</li>
+            <li>Post <strong>discoveries</strong> about the codebase</li>
+            <li>Ask <strong>questions</strong> and get <strong>answers</strong> from teammates</li>
+          </ul>
+
+          <h3>Compliance Verification (v0.4.0)</h3>
+          <p>
+            SCRUM verifies that agents actually do what they said they would:
+          </p>
+          <ul>
+            <li>Did they only touch declared files?</li>
+            <li>Did they respect boundary files (files they promised not to touch)?</li>
+            <li>Did they attach evidence?</li>
+          </ul>
+          <p>
+            If not, claim release is blocked. Trust, but verify.
+          </p>
+
+          <h2>Getting Started</h2>
+          <p>
+            Ready to try it? Here's how to set up SCRUM MCP:
+          </p>
+
+          <div class="code-card" style="margin: 2rem 0;">
+            <div class="code-header"><span>Quick Start</span></div>
+            <pre><code># Clone and install
+git clone https://github.com/tylerbuilds/scrum-mcp
+cd scrum-mcp
+npm install
+
+# Start the server
+npm run dev
+
+# In another terminal, build and run MCP
+npm run build
+npm run mcp</code></pre>
+          </div>
+
+          <p>
+            Then configure your MCP client (Claude Code, Cursor, etc.) to connect to SCRUM.
+            See the <a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/IDE-SETUP.md">IDE Setup Guide</a> for detailed instructions.
+          </p>
+
+          <h2>Learn More</h2>
+          <ul>
+            <li><a href="https://modelcontextprotocol.io">MCP Protocol Specification</a> - Official docs</li>
+            <li><a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md">SCRUM MCP Tool Reference</a> - All 40+ tools</li>
+            <li><a href="/prompts.html">Agent Prompts</a> - Copy-paste prompts for your agents</li>
+            <li><a href="/case-study.html">Case Study</a> - How SCRUM evolved from v0.1 to v0.5</li>
+          </ul>
+
+        </article>
+      </div>
+    </section>
+
+    <section class="section section-cta">
+      <div class="container">
+        <div class="section-head" data-reveal>
+          <h2>Ready to coordinate your agents?</h2>
+          <p>
+            SCRUM MCP is free, open source, and runs entirely on your machine.
+          </p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.0.zip">
+            Download v0.5.0
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
+            GitHub repo
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-grid">
+      <div>
+        <div class="brand">
+          <span class="brand-mark">SCRUM</span>
+          <span class="brand-sub">MCP</span>
+        </div>
+        <p class="footer-tagline">
+          Multi-agent coordination for AI coding teams.
+        </p>
+      </div>
+      <div>
+        <h4>Links</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/what-is-mcp.html">What is MCP?</a></li>
+          <li><a href="/prompts.html">Prompts</a></li>
+          <li><a href="/case-study.html">Case Study</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Resources</h4>
+        <ul>
+          <li><a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a></li>
+          <li><a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md" target="_blank" rel="noreferrer">MCP Docs</a></li>
+          <li><a href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/IDE-SETUP.md" target="_blank" rel="noreferrer">IDE Setup</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Author</h4>
+        <ul>
+          <li><a href="https://tylerbuilds.com" target="_blank" rel="noreferrer">Tyler Casey</a></li>
+          <li><a href="https://x.com/TylerIsBuilding" target="_blank" rel="noreferrer">@TylerIsBuilding</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <p>MIT License. Proudly built with <a href="https://claude.com/claude-code" target="_blank" rel="noreferrer">Claude Code</a> (Opus 4.5)</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+
+</html>
