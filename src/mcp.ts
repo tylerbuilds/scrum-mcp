@@ -7,16 +7,128 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
-import { z } from 'zod';
 import { loadConfig } from './core/config.js';
 import { createLogger } from './core/logger.js';
 import { openDb } from './infra/db.js';
 import { ScrumState } from './core/state.js';
 
+// Import all schemas from consolidated schemas file
+import {
+  TaskCreateSchema,
+  TaskGetSchema,
+  TaskListSchema,
+  TaskUpdateWithIdSchema,
+  BoardInputSchema,
+  TaskReadySchema,
+  IntentPostSchema,
+  ClaimCreateMcpSchema,
+  ClaimReleaseSchema,
+  ClaimExtendSchema,
+  EvidenceAttachSchema,
+  OverlapCheckSchema,
+  ChangelogLogSchema,
+  ChangelogSearchSchema,
+  CommentAddSchema,
+  CommentsListMcpSchema,
+  BlockerAddSchema,
+  BlockerResolveSchema,
+  BlockersListMcpSchema,
+  DependencyAddSchema,
+  DependencyRemoveSchema,
+  DependenciesGetSchema,
+  WipLimitsSetMcpSchema,
+  MetricsMcpSchema,
+  VelocityMcpSchema,
+  AgingWipMcpSchema,
+  TaskMetricsSchema,
+  AgentRegisterSchema,
+  AgentHeartbeatSchema,
+  AgentsListMcpSchema,
+  DeadWorkMcpSchema,
+  GateDefineSchema,
+  GateListSchema,
+  GateRunSchema,
+  GateStatusSchema,
+  TemplateCreateSchema,
+  TemplateGetSchema,
+  TaskFromTemplateSchema,
+  WebhookRegisterSchema,
+  WebhookUpdateSchema,
+  WebhookDeleteSchema,
+  WebhookDeliveriesSchema,
+  WebhooksListMcpSchema,
+  ComplianceCheckSchema,
+  SprintCreateSchema,
+  SprintGetSchema,
+  SprintForTaskSchema,
+  SprintListSchema,
+  SprintJoinSchema,
+  SprintLeaveSchema,
+  SprintMembersSchema,
+  SprintShareSchema,
+  SprintSharesSchema,
+  SprintContextSchema,
+  SprintCheckSchema
+} from './api/schemas.js';
+import type { ComplianceCheck } from './core/domain/compliance.js';
+
+/**
+ * Generate actionable next steps based on compliance check results.
+ * Helps agents understand exactly what they need to fix to become compliant.
+ */
+function getComplianceNextSteps(result: ComplianceCheck): string[] {
+  const steps: string[] = [];
+
+  if (!result.checks.intentPosted.passed) {
+    steps.push('POST INTENT: Call scrum_intent_post() with the files you plan to modify');
+  }
+
+  if (!result.checks.evidenceAttached.passed) {
+    steps.push('ATTACH EVIDENCE: Call scrum_evidence_attach() with test/build output proving your work');
+  }
+
+  if (!result.checks.filesMatch.passed && result.checks.filesMatch.undeclared.length > 0) {
+    steps.push(`SCOPE VIOLATION: You modified files not in your intent: ${result.checks.filesMatch.undeclared.join(', ')}`);
+    steps.push('FIX: Either post a new intent declaring these files, or revert changes to undeclared files');
+  }
+
+  if (!result.checks.boundariesRespected.passed) {
+    steps.push(`BOUNDARY VIOLATION: You modified files you promised NOT to touch: ${result.checks.boundariesRespected.violations.join(', ')}`);
+    steps.push('FIX: Revert changes to boundary files - these are off-limits per your declared intent');
+  }
+
+  if (!result.checks.claimsReleased.passed) {
+    steps.push(`UNRELEASED CLAIMS: You still have claims on: ${result.checks.claimsReleased.activeClaims.join(', ')}`);
+    steps.push('Note: Claims will be released after compliance is verified');
+  }
+
+  if (steps.length === 0) {
+    steps.push('All checks passed - you are compliant!');
+  }
+
+  return steps;
+}
+
 const cfg = loadConfig(process.env);
 const log = createLogger({ ...cfg, SCRUM_LOG_LEVEL: 'silent' });
 const db = openDb(cfg);
 const state = new ScrumState(db, log);
+
+/**
+ * Returns a disabled response for Sprint tools when SCRUM_SPRINT_ENABLED=false
+ */
+function sprintDisabledResponse() {
+  return {
+    content: [{
+      type: 'text' as const,
+      text: JSON.stringify({
+        status: 'disabled',
+        message: 'Sprint features are disabled. Set SCRUM_SPRINT_ENABLED=true to enable collaborative multi-agent work.',
+        hint: 'Use standard SCRUM workflow (intent, claim, evidence) for solo work.'
+      }, null, 2)
+    }]
+  };
+}
 
 const server = new Server(
   {
@@ -30,311 +142,6 @@ const server = new Server(
     }
   }
 );
-
-// Tool input schemas
-const TaskStatusSchema = z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']);
-const TaskPrioritySchema = z.enum(['critical', 'high', 'medium', 'low']);
-
-const TaskCreateInput = z.object({
-  title: z.string().min(1).max(200).describe('Task title'),
-  description: z.string().max(2000).optional().describe('Task description'),
-  status: TaskStatusSchema.optional().describe('Initial status (default: backlog)'),
-  priority: TaskPrioritySchema.optional().describe('Priority level (default: medium)'),
-  assignedAgent: z.string().max(120).optional().describe('Agent to assign'),
-  dueDate: z.number().optional().describe('Due date as ms timestamp'),
-  labels: z.array(z.string()).optional().describe('Labels/tags'),
-  storyPoints: z.number().int().min(1).max(21).optional().describe('Story points (1,2,3,5,8,13)')
-});
-
-const TaskGetInput = z.object({
-  taskId: z.string().min(4).describe('Task ID')
-});
-
-const TaskListInput = z.object({
-  limit: z.number().int().min(1).max(200).default(50).optional().describe('Max tasks to return')
-});
-
-const IntentPostInput = z.object({
-  taskId: z.string().min(4).describe('Task ID this intent belongs to'),
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  files: z.array(z.string().min(1)).min(1).max(200).describe('Files you intend to modify'),
-  boundaries: z.string().max(4000).optional().describe('What you promise NOT to change'),
-  acceptanceCriteria: z.string().min(10).max(4000).describe('REQUIRED: How to verify the work is done (min 10 chars)')
-});
-
-const ClaimCreateInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  files: z.array(z.string().min(1)).min(1).max(200).describe('Files to claim exclusive access to'),
-  ttlSeconds: z.number().int().min(5).max(3600).default(900).optional().describe('Claim duration in seconds')
-});
-
-const ClaimReleaseInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  files: z.array(z.string().min(1)).min(1).max(200).optional().describe('Files to release (all if omitted)')
-});
-
-const ClaimExtendInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  files: z.array(z.string().min(1)).min(1).max(200).optional().describe('Specific files to extend (all if omitted)'),
-  additionalSeconds: z.number().int().min(30).max(3600).default(300).optional().describe('Additional seconds to add (default 300)')
-});
-
-const EvidenceAttachInput = z.object({
-  taskId: z.string().min(4).describe('Task ID'),
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  command: z.string().min(1).max(2000).describe('Command that was run'),
-  output: z.string().min(0).max(500000).describe('Command output (stdout/stderr)')
-});
-
-const OverlapCheckInput = z.object({
-  files: z.array(z.string().min(1)).min(1).max(200).describe('Files to check for overlaps')
-});
-
-const ChangelogLogInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  filePath: z.string().min(1).describe('File that was changed (or task:{taskId} for task events)'),
-  changeType: z.enum([
-    // File changes
-    'create', 'modify', 'delete',
-    // Task events
-    'task_created', 'task_status_change', 'task_assigned', 'task_priority_change',
-    'task_completed', 'blocker_added', 'blocker_resolved', 'dependency_added',
-    'dependency_removed', 'comment_added'
-  ]).describe('Type of change'),
-  summary: z.string().min(1).max(500).describe('Brief description of what changed'),
-  taskId: z.string().optional().describe('Associated task ID'),
-  diffSnippet: z.string().max(5000).optional().describe('Key lines changed (optional)'),
-  commitHash: z.string().max(100).optional().describe('Git commit hash if available')
-});
-
-const ChangelogSearchInput = z.object({
-  filePath: z.string().optional().describe('Filter by file path (partial match, use task:{taskId} for task events)'),
-  agentId: z.string().optional().describe('Filter by agent'),
-  taskId: z.string().optional().describe('Filter by task'),
-  changeType: z.enum([
-    // File changes
-    'create', 'modify', 'delete',
-    // Task events
-    'task_created', 'task_status_change', 'task_assigned', 'task_priority_change',
-    'task_completed', 'blocker_added', 'blocker_resolved', 'dependency_added',
-    'dependency_removed', 'comment_added'
-  ]).optional().describe('Filter by change type'),
-  query: z.string().optional().describe('Search in summary and diff'),
-  since: z.number().optional().describe('Changes after this timestamp'),
-  until: z.number().optional().describe('Changes before this timestamp'),
-  limit: z.number().int().min(1).max(500).default(50).optional().describe('Max results')
-});
-
-const TaskUpdateInput = z.object({
-  taskId: z.string().min(4).describe('Task ID to update'),
-  status: TaskStatusSchema.optional().describe('New status'),
-  priority: TaskPrioritySchema.optional().describe('Priority level'),
-  assignedAgent: z.string().max(120).nullable().optional().describe('Agent to assign (null to unassign)'),
-  dueDate: z.number().nullable().optional().describe('Due date as ms timestamp'),
-  labels: z.array(z.string()).optional().describe('Labels/tags'),
-  storyPoints: z.number().int().min(1).max(21).nullable().optional().describe('Story points (1,2,3,5,8,13)'),
-  title: z.string().min(1).max(200).optional().describe('New title'),
-  description: z.string().max(2000).nullable().optional().describe('New description')
-});
-
-const BoardInput = z.object({
-  assignedAgent: z.string().optional().describe('Filter by assigned agent'),
-  labels: z.array(z.string()).optional().describe('Filter by labels')
-});
-
-// ==================== COMMENTS ====================
-
-const CommentAddInput = z.object({
-  taskId: z.string().min(4).describe('Task ID to comment on'),
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  content: z.string().min(1).max(10000).describe('Comment content (max 10000 chars)')
-});
-
-const CommentsListInput = z.object({
-  taskId: z.string().min(4).describe('Task ID'),
-  limit: z.number().int().min(1).max(500).default(50).optional().describe('Max comments to return (default 50)')
-});
-
-// ==================== BLOCKERS ====================
-
-const BlockerAddInput = z.object({
-  taskId: z.string().min(4).describe('Task ID that is blocked'),
-  description: z.string().min(1).max(2000).describe('What is blocking this task'),
-  blockingTaskId: z.string().min(4).optional().describe('Optional: Task ID that is causing the block'),
-  createdBy: z.string().min(1).max(120).describe('Your agent identifier')
-});
-
-const BlockerResolveInput = z.object({
-  blockerId: z.string().min(4).describe('Blocker ID to resolve')
-});
-
-const BlockersListInput = z.object({
-  taskId: z.string().min(4).describe('Task ID'),
-  unresolvedOnly: z.boolean().default(false).optional().describe('Only show unresolved blockers')
-});
-
-// ==================== DEPENDENCIES ====================
-
-const DependencyAddInput = z.object({
-  taskId: z.string().min(4).describe('Task that depends on another'),
-  dependsOnTaskId: z.string().min(4).describe('Task that must complete first')
-});
-
-const DependencyRemoveInput = z.object({
-  dependencyId: z.string().min(4).describe('Dependency ID to remove')
-});
-
-const DependenciesGetInput = z.object({
-  taskId: z.string().min(4).describe('Task ID')
-});
-
-const TaskReadyInput = z.object({
-  taskId: z.string().min(4).describe('Task ID to check')
-});
-
-// ==================== WIP LIMITS ====================
-
-const WipLimitsSetInput = z.object({
-  status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).describe('Column to set limit for'),
-  limit: z.number().int().min(1).max(100).nullable().optional().describe('Max tasks allowed (null to remove limit)')
-});
-
-// ==================== METRICS ====================
-
-const MetricsInput = z.object({
-  since: z.number().optional().describe('Start timestamp (ms), default 30 days ago'),
-  until: z.number().optional().describe('End timestamp (ms), default now')
-});
-
-const VelocityInput = z.object({
-  periodDays: z.number().int().min(1).max(30).optional().describe('Days per period (default 7)'),
-  periods: z.number().int().min(1).max(12).optional().describe('Number of periods (default 4)')
-});
-
-const AgingWipInput = z.object({
-  thresholdDays: z.number().min(0.5).max(30).optional().describe('Days threshold (default 2)')
-});
-
-const TaskMetricsInput = z.object({
-  taskId: z.string().min(4).describe('Task ID')
-});
-
-// ==================== AGENT REGISTRY ====================
-
-const AgentRegisterInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your unique agent identifier'),
-  capabilities: z.array(z.string()).min(1).max(20).describe('List of capabilities (e.g., ["code_review", "testing"])'),
-  metadata: z.record(z.unknown()).optional().describe('Optional metadata (e.g., {"model": "claude-opus"})')
-});
-
-const AgentHeartbeatInput = z.object({
-  agentId: z.string().min(1).max(120).describe('Your agent identifier')
-});
-
-// ==================== DEAD WORK DETECTION ====================
-
-const DeadWorkInput = z.object({
-  staleDays: z.number().min(0.5).max(30).optional().describe('Days threshold for staleness (default 1)')
-});
-
-// ==================== APPROVAL GATES ====================
-
-const GateTypeSchema = z.enum(['lint', 'test', 'build', 'review', 'custom']);
-
-const GateDefineInput = z.object({
-  taskId: z.string().min(4).describe('Task ID to attach gate to'),
-  gateType: GateTypeSchema.describe('Type of gate'),
-  command: z.string().min(1).max(2000).describe('Command to run (e.g., "npm run lint")'),
-  triggerStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).describe('Status that triggers this gate'),
-  required: z.boolean().optional().describe('Must pass to transition (default true)')
-});
-
-const GateListInput = z.object({
-  taskId: z.string().min(4).describe('Task ID')
-});
-
-const GateRunInput = z.object({
-  gateId: z.string().min(4).describe('Gate ID'),
-  taskId: z.string().min(4).describe('Task ID'),
-  agentId: z.string().min(1).max(120).describe('Your agent identifier'),
-  passed: z.boolean().describe('Whether the gate passed'),
-  output: z.string().max(500000).optional().describe('Command output'),
-  durationMs: z.number().optional().describe('Execution time in ms')
-});
-
-const GateStatusInput = z.object({
-  taskId: z.string().min(4).describe('Task ID'),
-  forStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).describe('Status to check gates for')
-});
-
-// ==================== TASK TEMPLATES ====================
-
-const TemplateCreateInput = z.object({
-  name: z.string().min(1).max(100).describe('Unique template name'),
-  titlePattern: z.string().min(1).max(200).describe('Title pattern with {{placeholders}}'),
-  descriptionTemplate: z.string().max(5000).optional().describe('Description template with {{placeholders}}'),
-  defaultStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']).optional().describe('Default status'),
-  defaultPriority: z.enum(['critical', 'high', 'medium', 'low']).optional().describe('Default priority'),
-  defaultLabels: z.array(z.string()).optional().describe('Default labels'),
-  defaultStoryPoints: z.number().int().min(1).max(21).optional().describe('Default story points'),
-  gates: z.array(z.object({
-    gateType: GateTypeSchema,
-    command: z.string(),
-    triggerStatus: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done'])
-  })).optional().describe('Pre-configured gates'),
-  checklist: z.array(z.string()).optional().describe('Acceptance checklist items')
-});
-
-const TemplateGetInput = z.object({
-  nameOrId: z.string().min(1).describe('Template name or ID')
-});
-
-const TaskFromTemplateInput = z.object({
-  template: z.string().min(1).describe('Template name or ID'),
-  variables: z.record(z.string()).describe('Variable substitutions (e.g., {"issue": "Bug in login"})'),
-  overrides: z.object({
-    title: z.string().optional(),
-    description: z.string().optional(),
-    status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']).optional(),
-    priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-    assignedAgent: z.string().optional(),
-    labels: z.array(z.string()).optional(),
-    storyPoints: z.number().optional()
-  }).optional().describe('Override template defaults')
-});
-
-// ==================== WEBHOOKS ====================
-
-const WebhookEventTypeSchema = z.enum([
-  'task.created', 'task.updated', 'task.completed',
-  'intent.posted', 'claim.created', 'claim.conflict', 'claim.released',
-  'evidence.attached', 'gate.passed', 'gate.failed'
-]);
-
-const WebhookRegisterInput = z.object({
-  name: z.string().min(1).max(100).describe('Webhook name'),
-  url: z.string().url().describe('Webhook URL'),
-  events: z.array(WebhookEventTypeSchema).min(1).describe('Events to subscribe to'),
-  headers: z.record(z.string()).optional().describe('Custom headers'),
-  secret: z.string().optional().describe('Secret for HMAC signing')
-});
-
-const WebhookUpdateInput = z.object({
-  webhookId: z.string().min(4).describe('Webhook ID'),
-  url: z.string().url().optional().describe('New URL'),
-  events: z.array(WebhookEventTypeSchema).optional().describe('New events'),
-  headers: z.record(z.string()).optional().describe('New headers'),
-  enabled: z.boolean().optional().describe('Enable/disable webhook')
-});
-
-const WebhookDeleteInput = z.object({
-  webhookId: z.string().min(4).describe('Webhook ID to delete')
-});
-
-const WebhookDeliveriesInput = z.object({
-  webhookId: z.string().min(4).describe('Webhook ID'),
-  limit: z.number().int().min(1).max(100).optional().describe('Max deliveries (default 50)')
-});
 
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -625,9 +432,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             taskId: { type: 'string', description: 'Task ID that is blocked' },
             description: { type: 'string', description: 'What is blocking this task' },
             blockingTaskId: { type: 'string', description: 'Optional: Task ID that is causing the block' },
-            createdBy: { type: 'string', description: 'Your agent identifier' }
+            agentId: { type: 'string', description: 'Your agent identifier' }
           },
-          required: ['taskId', 'description', 'createdBy']
+          required: ['taskId', 'description', 'agentId']
         }
       },
       {
@@ -1044,6 +851,169 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['webhookId']
         }
+      },
+      // ==================== COMPLIANCE ====================
+      {
+        name: 'scrum_compliance_check',
+        description: 'Verify your work matches your declared intent. Returns compliance score and specific violations. MUST call before releasing claims or completing tasks. Blocks release if undeclared files modified or boundaries violated. Returns actionable feedback so you can iterate to fix issues.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID to check compliance for' },
+            agentId: { type: 'string', description: 'Your agent ID' }
+          },
+          required: ['taskId', 'agentId']
+        }
+      },
+      // ==================== SPRINT (Collaborative Multi-Agent Work) ====================
+      {
+        name: 'scrum_sprint_create',
+        description: 'Create a sprint for collaborative multi-agent work on a task. Sprints are NOT about control - they are about shared understanding. Use when multiple agents need to coordinate on the same task.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID to create sprint for' },
+            name: { type: 'string', description: 'Sprint name (optional)' },
+            goal: { type: 'string', description: 'What we are trying to achieve together (optional)' }
+          },
+          required: ['taskId']
+        }
+      },
+      {
+        name: 'scrum_sprint_get',
+        description: 'Get a sprint by ID.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' }
+          },
+          required: ['sprintId']
+        }
+      },
+      {
+        name: 'scrum_sprint_for_task',
+        description: 'Get the active sprint for a task, if one exists.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID' }
+          },
+          required: ['taskId']
+        }
+      },
+      {
+        name: 'scrum_sprint_list',
+        description: 'List sprints with optional filters.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Filter by task ID (optional)' },
+            status: { type: 'string', enum: ['active', 'completed', 'abandoned'], description: 'Filter by status (optional)' }
+          },
+          required: []
+        }
+      },
+      {
+        name: 'scrum_sprint_complete',
+        description: 'Mark a sprint as completed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID to complete' }
+          },
+          required: ['sprintId']
+        }
+      },
+      {
+        name: 'scrum_sprint_join',
+        description: 'Join a sprint and declare what you are working on. Other agents can see your focus and coordinate. CALL THIS when starting work in a multi-agent task.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID to join' },
+            agentId: { type: 'string', description: 'Your agent ID' },
+            workingOn: { type: 'string', description: 'Human-readable description of what you are building (e.g., "Implementing JWT authentication in backend")' },
+            focusArea: { type: 'string', description: 'Your focus area: backend, frontend, tests, auth, api, etc. (optional)' }
+          },
+          required: ['sprintId', 'agentId', 'workingOn']
+        }
+      },
+      {
+        name: 'scrum_sprint_leave',
+        description: 'Leave a sprint when done with your work.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID to leave' },
+            agentId: { type: 'string', description: 'Your agent ID' }
+          },
+          required: ['sprintId', 'agentId']
+        }
+      },
+      {
+        name: 'scrum_sprint_members',
+        description: 'Get all active members of a sprint and what they are working on.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' }
+          },
+          required: ['sprintId']
+        }
+      },
+      {
+        name: 'scrum_sprint_share',
+        description: 'Share context, decisions, interfaces, or discoveries with the sprint group. This is how agents understand each other\'s work. Share types: context (background info), decision (architectural choices), interface (API contracts), discovery (findings), integration (how to connect), question (ask the group), answer (respond to question).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' },
+            agentId: { type: 'string', description: 'Your agent ID' },
+            shareType: { type: 'string', enum: ['context', 'decision', 'interface', 'discovery', 'integration', 'question', 'answer'], description: 'Type of share' },
+            title: { type: 'string', description: 'Short summary (max 200 chars)' },
+            content: { type: 'string', description: 'Full detail - code, explanations, etc.' },
+            relatedFiles: { type: 'array', items: { type: 'string' }, description: 'Files this relates to (optional)' },
+            replyToId: { type: 'string', description: 'If answering a question, the question share ID (optional)' }
+          },
+          required: ['sprintId', 'agentId', 'shareType', 'title', 'content']
+        }
+      },
+      {
+        name: 'scrum_sprint_shares',
+        description: 'Get all shares in a sprint, optionally filtered by type.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' },
+            shareType: { type: 'string', enum: ['context', 'decision', 'interface', 'discovery', 'integration', 'question', 'answer'], description: 'Filter by share type (optional)' },
+            limit: { type: 'number', description: 'Max shares to return (optional)' }
+          },
+          required: ['sprintId']
+        }
+      },
+      {
+        name: 'scrum_sprint_context',
+        description: 'Get complete sprint context - CALL THIS BEFORE STARTING WORK to understand what the team is doing. Returns: members and their focus, all decisions/interfaces/discoveries, unanswered questions, and files being touched.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' }
+          },
+          required: ['sprintId']
+        }
+      },
+      {
+        name: 'scrum_sprint_check',
+        description: 'Check sprint status and get relevant updates for your work. CALL THIS PERIODICALLY during work to stay coordinated. Returns new shares since you last checked, unanswered questions you might help with, and integration points relevant to your focus area.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID' },
+            agentId: { type: 'string', description: 'Your agent ID' },
+            focusArea: { type: 'string', description: 'Your focus area to filter relevant shares (optional)' }
+          },
+          required: ['sprintId', 'agentId']
+        }
       }
     ]
   };
@@ -1063,14 +1033,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_create': {
-        const input = TaskCreateInput.parse(args);
+        const input = TaskCreateSchema.parse(args);
         const task = state.createTask(input.title, input.description, {
           status: input.status,
           priority: input.priority,
-          assignedAgent: input.assignedAgent,
-          dueDate: input.dueDate,
+          assignedAgent: input.assignedAgent ?? undefined,
+          dueDate: input.dueDate ?? undefined,
           labels: input.labels,
-          storyPoints: input.storyPoints
+          storyPoints: input.storyPoints ?? undefined
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(task, null, 2) }]
@@ -1078,7 +1048,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_get': {
-        const input = TaskGetInput.parse(args);
+        const input = TaskGetSchema.parse(args);
         const task = state.getTask(input.taskId);
         if (!task) {
           return {
@@ -1108,7 +1078,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_list': {
-        const input = TaskListInput.parse(args ?? {});
+        const input = TaskListSchema.parse(args ?? {});
         const tasks = state.listTasks(input.limit ?? 50);
         return {
           content: [{ type: 'text', text: JSON.stringify(tasks, null, 2) }]
@@ -1116,7 +1086,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_intent_post': {
-        const input = IntentPostInput.parse(args);
+        const input = IntentPostSchema.parse(args);
         const intent = state.postIntent(input);
         return {
           content: [{ type: 'text', text: JSON.stringify(intent, null, 2) }]
@@ -1124,7 +1094,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_claim': {
-        const input = ClaimCreateInput.parse(args);
+        const input = ClaimCreateMcpSchema.parse(args);
 
         // ENFORCEMENT: Must have declared intent for these files first
         const intentCheck = state.hasIntentForFiles(input.agentId, input.files);
@@ -1180,7 +1150,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_claim_release': {
-        const input = ClaimReleaseInput.parse(args);
+        const input = ClaimReleaseSchema.parse(args);
 
         // ENFORCEMENT: Must have attached evidence before releasing claims
         const activeClaims = state.getAgentClaims(input.agentId);
@@ -1206,6 +1176,45 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               isError: true
             };
           }
+
+          // ENFORCEMENT: Must pass compliance check for each task
+          for (const taskId of evidenceCheck.taskIds) {
+            const compliance = state.checkCompliance(taskId, input.agentId);
+
+            // Block on scope violations (undeclared file modifications)
+            if (!compliance.checks.filesMatch.passed && compliance.checks.filesMatch.undeclared.length > 0) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'rejected',
+                    reason: 'COMPLIANCE_FAILED',
+                    message: `Scope violation: You modified files not declared in your intent: ${compliance.checks.filesMatch.undeclared.join(', ')}`,
+                    compliance,
+                    nextSteps: getComplianceNextSteps(compliance)
+                  }, null, 2)
+                }],
+                isError: true
+              };
+            }
+
+            // Block on boundary violations
+            if (!compliance.checks.boundariesRespected.passed) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'rejected',
+                    reason: 'BOUNDARY_VIOLATION',
+                    message: `Boundary violation: You modified files you promised NOT to touch: ${compliance.checks.boundariesRespected.violations.join(', ')}`,
+                    compliance,
+                    nextSteps: getComplianceNextSteps(compliance)
+                  }, null, 2)
+                }],
+                isError: true
+              };
+            }
+          }
         }
 
         const released = state.releaseClaims(input.agentId, input.files);
@@ -1227,7 +1236,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_claim_extend': {
-        const input = ClaimExtendInput.parse(args);
+        const input = ClaimExtendSchema.parse(args);
         const result = state.extendClaims(input.agentId, input.additionalSeconds ?? 300, input.files);
         if (result.extended === 0) {
           return {
@@ -1255,7 +1264,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_evidence_attach': {
-        const input = EvidenceAttachInput.parse(args);
+        const input = EvidenceAttachSchema.parse(args);
         const evidence = state.attachEvidence(input);
         return {
           content: [{ type: 'text', text: JSON.stringify(evidence, null, 2) }]
@@ -1263,7 +1272,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_overlap_check': {
-        const input = OverlapCheckInput.parse(args);
+        const input = OverlapCheckSchema.parse(args);
         const claims = state.listActiveClaims();
         const overlaps: { file: string; claimedBy: string; expiresAt: number }[] = [];
         for (const claim of claims) {
@@ -1292,7 +1301,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_changelog_log': {
-        const input = ChangelogLogInput.parse(args);
+        const input = ChangelogLogSchema.parse(args);
         const entry = state.logChange(input);
         return {
           content: [
@@ -1305,7 +1314,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_changelog_search': {
-        const input = ChangelogSearchInput.parse(args ?? {});
+        const input = ChangelogSearchSchema.parse(args ?? {});
         const entries = state.searchChangelog(input);
         return {
           content: [
@@ -1326,8 +1335,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_update': {
-        const input = TaskUpdateInput.parse(args);
+        const input = TaskUpdateWithIdSchema.parse(args);
         const { taskId, ...updates } = input;
+
+        // ENFORCEMENT: When transitioning to 'done', check compliance for all agents
+        if (updates.status === 'done') {
+          const agents = state.getTaskAgents(taskId);
+          for (const agentId of agents) {
+            const compliance = state.checkCompliance(taskId, agentId);
+            if (!compliance.canComplete) {
+              return {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    status: 'rejected',
+                    reason: 'COMPLIANCE_BLOCKED',
+                    message: `Cannot complete task: ${compliance.summary}`,
+                    agentId,
+                    compliance,
+                    nextSteps: getComplianceNextSteps(compliance)
+                  }, null, 2)
+                }],
+                isError: true
+              };
+            }
+          }
+        }
+
         try {
           const task = state.updateTask(taskId, updates);
           return {
@@ -1350,7 +1384,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_board': {
-        const input = BoardInput.parse(args ?? {});
+        const input = BoardInputSchema.parse(args ?? {});
         const board = state.getBoard(input);
         const counts = {
           backlog: board.backlog.length,
@@ -1373,7 +1407,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== COMMENTS ====================
 
       case 'scrum_comment_add': {
-        const input = CommentAddInput.parse(args);
+        const input = CommentAddSchema.parse(args);
         try {
           const comment = state.addComment(input);
           return {
@@ -1396,7 +1430,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_comments_list': {
-        const input = CommentsListInput.parse(args);
+        const input = CommentsListMcpSchema.parse(args);
         const comments = state.listComments(input.taskId, input.limit ?? 50);
         return {
           content: [
@@ -1411,7 +1445,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== BLOCKERS ====================
 
       case 'scrum_blocker_add': {
-        const input = BlockerAddInput.parse(args);
+        const input = BlockerAddSchema.parse(args);
         try {
           const blocker = state.addBlocker(input);
           return {
@@ -1440,7 +1474,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_blocker_resolve': {
-        const input = BlockerResolveInput.parse(args);
+        const input = BlockerResolveSchema.parse(args);
         try {
           const blocker = state.resolveBlocker(input.blockerId);
           return {
@@ -1463,7 +1497,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_blockers_list': {
-        const input = BlockersListInput.parse(args);
+        const input = BlockersListMcpSchema.parse(args);
         const blockers = state.listBlockers(input.taskId, { unresolvedOnly: input.unresolvedOnly });
         const unresolvedCount = state.getUnresolvedBlockersCount(input.taskId);
         return {
@@ -1483,7 +1517,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== DEPENDENCIES ====================
 
       case 'scrum_dependency_add': {
-        const input = DependencyAddInput.parse(args);
+        const input = DependencyAddSchema.parse(args);
         try {
           const dependency = state.addDependency(input.taskId, input.dependsOnTaskId);
           return {
@@ -1518,7 +1552,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_dependency_remove': {
-        const input = DependencyRemoveInput.parse(args);
+        const input = DependencyRemoveSchema.parse(args);
         const deleted = state.removeDependency(input.dependencyId);
         if (!deleted) {
           return {
@@ -1537,7 +1571,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_dependencies_get': {
-        const input = DependenciesGetInput.parse(args);
+        const input = DependenciesGetSchema.parse(args);
         const task = state.getTask(input.taskId);
         if (!task) {
           return {
@@ -1563,7 +1597,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_ready': {
-        const input = TaskReadyInput.parse(args);
+        const input = TaskReadySchema.parse(args);
         const task = state.getTask(input.taskId);
         if (!task) {
           return {
@@ -1604,7 +1638,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_wip_limits_set': {
-        const input = WipLimitsSetInput.parse(args);
+        const input = WipLimitsSetMcpSchema.parse(args);
         try {
           state.setWipLimit(input.status, input.limit ?? null);
           return {
@@ -1653,7 +1687,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== METRICS ====================
 
       case 'scrum_metrics': {
-        const input = MetricsInput.parse(args ?? {});
+        const input = MetricsMcpSchema.parse(args ?? {});
         const metrics = state.getBoardMetrics({
           since: input.since,
           until: input.until
@@ -1669,7 +1703,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_velocity': {
-        const input = VelocityInput.parse(args ?? {});
+        const input = VelocityMcpSchema.parse(args ?? {});
         const velocity = state.getVelocity({
           periodDays: input.periodDays,
           periods: input.periods
@@ -1689,7 +1723,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_aging_wip': {
-        const input = AgingWipInput.parse(args ?? {});
+        const input = AgingWipMcpSchema.parse(args ?? {});
         const aging = state.getAgingWip({
           thresholdDays: input.thresholdDays
         });
@@ -1711,7 +1745,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_metrics': {
-        const input = TaskMetricsInput.parse(args);
+        const input = TaskMetricsSchema.parse(args);
         const metrics = state.getTaskMetrics(input.taskId);
         if (!metrics) {
           return {
@@ -1736,7 +1770,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== AGENT REGISTRY ====================
 
       case 'scrum_agent_register': {
-        const input = AgentRegisterInput.parse(args);
+        const input = AgentRegisterSchema.parse(args);
         const agent = state.registerAgent(input);
         return {
           content: [{
@@ -1751,9 +1785,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_agents_list': {
-        const input = z.object({
-          includeOffline: z.boolean().optional()
-        }).parse(args ?? {});
+        const input = AgentsListMcpSchema.parse(args ?? {});
         const agents = state.listAgents({ includeOffline: input.includeOffline });
         return {
           content: [{
@@ -1770,7 +1802,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_agent_heartbeat': {
-        const input = AgentHeartbeatInput.parse(args);
+        const input = AgentHeartbeatSchema.parse(args);
         const success = state.agentHeartbeat(input.agentId);
         if (!success) {
           return {
@@ -1799,7 +1831,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== DEAD WORK DETECTION ====================
 
       case 'scrum_dead_work': {
-        const input = DeadWorkInput.parse(args ?? {});
+        const input = DeadWorkMcpSchema.parse(args ?? {});
         const deadWork = state.findDeadWork({ staleDays: input.staleDays });
         return {
           content: [{
@@ -1819,7 +1851,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== APPROVAL GATES ====================
 
       case 'scrum_gate_define': {
-        const input = GateDefineInput.parse(args);
+        const input = GateDefineSchema.parse(args);
         try {
           const gate = state.defineGate(input);
           return {
@@ -1844,7 +1876,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_gates_list': {
-        const input = GateListInput.parse(args);
+        const input = GateListSchema.parse(args);
         const gates = state.listGates(input.taskId);
         return {
           content: [{
@@ -1859,7 +1891,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_gate_run': {
-        const input = GateRunInput.parse(args);
+        const input = GateRunSchema.parse(args);
         try {
           const run = state.recordGateRun(input);
           return {
@@ -1884,7 +1916,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_gate_status': {
-        const input = GateStatusInput.parse(args);
+        const input = GateStatusSchema.parse(args);
         const gateStatus = state.getGateStatus(input.taskId, input.forStatus);
         return {
           content: [{
@@ -1907,7 +1939,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== TASK TEMPLATES ====================
 
       case 'scrum_template_create': {
-        const input = TemplateCreateInput.parse(args);
+        const input = TemplateCreateSchema.parse(args);
         try {
           const template = state.createTemplate(input);
           return {
@@ -1932,7 +1964,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_template_get': {
-        const input = TemplateGetInput.parse(args);
+        const input = TemplateGetSchema.parse(args);
         const template = state.getTemplate(input.nameOrId);
         if (!template) {
           return {
@@ -1962,7 +1994,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_task_from_template': {
-        const input = TaskFromTemplateInput.parse(args);
+        const input = TaskFromTemplateSchema.parse(args);
         // Verify template exists first
         const template = state.getTemplate(input.template);
         if (!template) {
@@ -1988,7 +2020,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       // ==================== WEBHOOKS ====================
 
       case 'scrum_webhook_register': {
-        const input = WebhookRegisterInput.parse(args);
+        const input = WebhookRegisterSchema.parse(args);
         const webhook = state.registerWebhook(input);
         return {
           content: [{
@@ -2003,9 +2035,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_webhooks_list': {
-        const input = z.object({
-          enabledOnly: z.boolean().optional()
-        }).parse(args ?? {});
+        const input = WebhooksListMcpSchema.parse(args ?? {});
         const webhooks = state.listWebhooks({ enabledOnly: input.enabledOnly });
         return {
           content: [{
@@ -2019,7 +2049,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_webhook_update': {
-        const input = WebhookUpdateInput.parse(args);
+        const input = WebhookUpdateSchema.parse(args);
         try {
           const webhook = state.updateWebhook(input.webhookId, {
             url: input.url,
@@ -2055,7 +2085,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_webhook_delete': {
-        const input = WebhookDeleteInput.parse(args);
+        const input = WebhookDeleteSchema.parse(args);
         const deleted = state.deleteWebhook(input.webhookId);
         if (!deleted) {
           return {
@@ -2076,7 +2106,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       case 'scrum_webhook_deliveries': {
-        const input = WebhookDeliveriesInput.parse(args);
+        const input = WebhookDeliveriesSchema.parse(args);
         const deliveries = state.listWebhookDeliveries(input.webhookId, input.limit ?? 50);
         return {
           content: [{
@@ -2085,6 +2115,413 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               webhookId: input.webhookId,
               count: deliveries.length,
               deliveries
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== COMPLIANCE ====================
+
+      case 'scrum_compliance_check': {
+        const input = ComplianceCheckSchema.parse(args);
+
+        // Verify task exists
+        const task = state.getTask(input.taskId);
+        if (!task) {
+          return {
+            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+            isError: true
+          };
+        }
+
+        const result = state.checkCompliance(input.taskId, input.agentId);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: result.canComplete ? 'ok' : 'blocked',
+              ...result,
+              // Add actionable next steps if not compliant
+              nextSteps: !result.canComplete ? getComplianceNextSteps(result) : undefined
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== SPRINT (Collaborative Multi-Agent Work) ====================
+
+      case 'scrum_sprint_create': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintCreateSchema.parse(args);
+
+        // Verify task exists
+        const task = state.getTask(input.taskId);
+        if (!task) {
+          return {
+            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+            isError: true
+          };
+        }
+
+        const sprint = state.createSprint(input);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              sprint,
+              message: `Sprint created for task "${task.title}". Agents can now join with scrum_sprint_join.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_get': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintGetSchema.parse(args);
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        const members = state.getSprintMembers(input.sprintId);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ sprint, members }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_for_task': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintForTaskSchema.parse(args);
+
+        // Verify task exists
+        const task = state.getTask(input.taskId);
+        if (!task) {
+          return {
+            content: [{ type: 'text', text: `Task not found: ${input.taskId}` }],
+            isError: true
+          };
+        }
+
+        const sprint = state.getSprintForTask(input.taskId);
+        if (!sprint) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'no_sprint',
+                taskId: input.taskId,
+                message: 'No active sprint for this task. Create one with scrum_sprint_create if needed.'
+              }, null, 2)
+            }]
+          };
+        }
+
+        const members = state.getSprintMembers(sprint.id);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({ sprint, members }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_list': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintListSchema.parse(args ?? {});
+        const sprints = state.listSprints({
+          taskId: input.taskId,
+          status: input.status
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              count: sprints.length,
+              sprints
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_complete': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintGetSchema.parse(args);
+        const sprint = state.completeSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              sprint,
+              message: 'Sprint completed.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_join': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintJoinSchema.parse(args);
+
+        // Verify sprint exists
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        const member = state.joinSprint(input);
+        const members = state.getSprintMembers(input.sprintId);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              member,
+              teamSize: members.length,
+              teammates: members.filter(m => m.agentId !== input.agentId).map(m => ({
+                agentId: m.agentId,
+                workingOn: m.workingOn,
+                focusArea: m.focusArea
+              })),
+              message: `Joined sprint. ${members.length} agent(s) now active. Call scrum_sprint_context to understand what others are doing.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_leave': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintLeaveSchema.parse(args);
+        const left = state.leaveSprint(input.sprintId, input.agentId);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: left ? 'ok' : 'not_in_sprint',
+              left,
+              message: left ? 'Left sprint.' : 'You were not in this sprint.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_members': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintMembersSchema.parse(args);
+
+        // Verify sprint exists
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        const members = state.getSprintMembers(input.sprintId);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              sprintId: input.sprintId,
+              count: members.length,
+              members
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_share': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintShareSchema.parse(args);
+
+        // Verify sprint exists
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        const share = state.shareWithSprint(input);
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              share,
+              message: `Shared ${input.shareType}: "${input.title}". Other agents will see this in sprint context.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_shares': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintSharesSchema.parse(args);
+
+        // Verify sprint exists
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        const shares = state.getSprintShares(input.sprintId, {
+          shareType: input.shareType,
+          limit: input.limit
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              sprintId: input.sprintId,
+              count: shares.length,
+              shares
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_context': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintContextSchema.parse(args);
+
+        const context = state.getSprintContext(input.sprintId);
+        if (!context) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        // Organize shares by type for easier consumption
+        const decisions = context.shares.filter(s => s.shareType === 'decision');
+        const interfaces = context.shares.filter(s => s.shareType === 'interface');
+        const discoveries = context.shares.filter(s => s.shareType === 'discovery');
+        const integrations = context.shares.filter(s => s.shareType === 'integration');
+        const unansweredQuestions = state.getUnansweredQuestions(input.sprintId);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              sprint: context.sprint,
+              members: context.members,
+              allFiles: context.allFiles,
+              allBoundaries: context.allBoundaries,
+              summary: {
+                memberCount: context.members.length,
+                decisionsCount: decisions.length,
+                interfacesCount: interfaces.length,
+                discoveriesCount: discoveries.length,
+                integrationsCount: integrations.length,
+                unansweredQuestionsCount: unansweredQuestions.length
+              },
+              // Key information for understanding team work
+              decisions,
+              interfaces,
+              discoveries,
+              integrations,
+              unansweredQuestions,
+              message: `${context.members.length} agent(s) in sprint. Review decisions and interfaces before starting work.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_sprint_check': {
+        if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
+        const input = SprintCheckSchema.parse(args);
+
+        const context = state.getSprintContext(input.sprintId);
+        if (!context) {
+          return {
+            content: [{ type: 'text', text: `Sprint not found: ${input.sprintId}` }],
+            isError: true
+          };
+        }
+
+        // Find the agent's focus area from their membership
+        const myMembership = context.members.find(m => m.agentId === input.agentId);
+        const focusArea = input.focusArea || myMembership?.focusArea;
+
+        // Get unanswered questions
+        const unansweredQuestions = state.getUnansweredQuestions(input.sprintId);
+
+        // Filter shares relevant to this agent's focus area
+        const relevantShares = focusArea
+          ? context.shares.filter(s => {
+              // Check if share content mentions focus area
+              const content = (s.title + ' ' + s.content).toLowerCase();
+              const focus = focusArea.toLowerCase();
+              return content.includes(focus);
+            })
+          : [];
+
+        // Find interfaces that might need implementation
+        const interfaces = context.shares.filter(s => s.shareType === 'interface');
+
+        // Find integration points
+        const integrations = context.shares.filter(s => s.shareType === 'integration');
+
+        // What other agents are working on
+        const teammates = context.members
+          .filter(m => m.agentId !== input.agentId)
+          .map(m => ({
+            agentId: m.agentId,
+            workingOn: m.workingOn,
+            focusArea: m.focusArea
+          }));
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              teammates,
+              unansweredQuestions: unansweredQuestions.map(q => ({
+                id: q.id,
+                title: q.title,
+                agentId: q.agentId,
+                createdAt: q.createdAt
+              })),
+              interfaces: interfaces.map(i => ({
+                id: i.id,
+                title: i.title,
+                agentId: i.agentId,
+                relatedFiles: i.relatedFiles
+              })),
+              integrations: integrations.map(i => ({
+                id: i.id,
+                title: i.title,
+                agentId: i.agentId
+              })),
+              relevantToYourFocus: focusArea ? relevantShares.length : 'no focus area set',
+              message: unansweredQuestions.length > 0
+                ? `${unansweredQuestions.length} unanswered question(s) - can you help?`
+                : 'Team is coordinated. Check interfaces and integrations for connection points.'
             }, null, 2)
           }]
         };

@@ -173,14 +173,18 @@ Returns:
 
 #### `scrum_claim_release`
 
-Release your claims when done editing.
+Release your claims when done editing. **Enforces compliance check** - will reject if:
+- You modified files not declared in your intent
+- You touched files declared as boundaries (off-limits)
 
 ```
 Inputs:
   - agentId (required): Your identifier
   - files (optional): Specific files to release (omit to release all)
 
-Returns: { status: "ok", released }
+Returns:
+  - Success: { status: "ok", released }
+  - Blocked: { status: "rejected", reason: "COMPLIANCE_FAILED", message, nextSteps }
 ```
 
 #### `scrum_claims_list`
@@ -218,6 +222,48 @@ Inputs:
 Returns: { id, taskId, agentId, command, output, createdAt }
 ```
 
+#### `scrum_compliance_check`
+
+**v0.4.0+** - Verify your work matches your declared intent. Call this before releasing claims to see your compliance status. Returns actionable feedback if violations are found.
+
+```
+Inputs:
+  - taskId (required): Task ID to check
+  - agentId (required): Your agent identifier
+
+Returns:
+  compliant: boolean       # Overall compliance status
+  score: number           # 0-100 compliance score
+  canComplete: boolean    # Whether task can be marked done
+  checks:
+    intentPosted:         # Did you post intent? (20 points)
+    evidenceAttached:     # Did you attach evidence? (20 points)
+    filesMatch:           # Modified files match declared? (30 points)
+      declared: string[]  # Files you said you'd modify
+      modified: string[]  # Files you actually modified
+      undeclared: string[]# Modified but not declared (VIOLATION)
+      unmodified: string[]# Declared but not modified (warning)
+    boundariesRespected:  # Did you avoid boundary files? (20 points)
+      boundaries: string[]# Files you said you wouldn't touch
+      violations: string[]# Boundary files you touched (VIOLATION)
+    claimsReleased:       # Claims released? (10 points)
+  summary: string         # Human-readable summary
+  nextSteps: string[]     # What to do to fix violations
+```
+
+**Scoring:**
+- 100: Perfect compliance
+- 70-99: Minor issues (warnings)
+- <70: Blocked from completing
+
+**Example workflow:**
+```
+1. scrum_compliance_check(taskId, agentId)
+2. If violations found, fix them (update intent or revert changes)
+3. Re-check until compliant
+4. scrum_claim_release(agentId)  # Now succeeds
+```
+
 #### `scrum_overlap_check`
 
 Check if files are claimed by other agents before starting work.
@@ -227,6 +273,221 @@ Inputs:
   - files (required): Array of file paths to check
 
 Returns: { hasOverlaps, overlaps[], checkedFiles }
+```
+
+### Sprint Collaboration (v0.5.0)
+
+Sprint is a shared context space where multiple agents working on the same task can coordinate. Use Sprint when orchestrating sub-agents or when multiple agents need to integrate their work.
+
+**Configuration:** Set `SCRUM_SPRINT_ENABLED=false` to disable Sprint features.
+
+#### `scrum_sprint_create`
+
+Create a sprint for collaborative work on a task.
+
+```
+Inputs:
+  - taskId (required): Task to associate with sprint
+  - name (optional): Sprint name (max 200 chars)
+  - goal (optional): Sprint goal description (max 2000 chars)
+
+Returns: { id, taskId, name, goal, status, createdAt }
+```
+
+#### `scrum_sprint_join`
+
+Join a sprint as a participating agent. Call this before starting work.
+
+```
+Inputs:
+  - sprintId (required): Sprint to join
+  - agentId (required): Your unique identifier
+  - workingOn (required): What you're implementing
+  - focusArea (optional): Your focus area (e.g., "backend", "frontend", "tests", "api", "auth")
+
+Returns: { member, teamSize, teammates, message }
+```
+
+#### `scrum_sprint_context`
+
+**CRITICAL: Call this before starting work.** Get full sprint context including what teammates are doing, decisions made, and interfaces defined.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+
+Returns: {
+  sprint: Sprint,
+  members: SprintMember[],
+  allFiles: string[],        # Files being worked on
+  allBoundaries: string[],   # Files marked as off-limits
+  summary: {
+    memberCount, decisionsCount, interfacesCount,
+    discoveriesCount, integrationsCount, unansweredQuestionsCount
+  },
+  decisions: SprintShare[],
+  interfaces: SprintShare[],
+  discoveries: SprintShare[],
+  integrations: SprintShare[],
+  unansweredQuestions: SprintShare[]
+}
+```
+
+#### `scrum_sprint_share`
+
+Share context with your teammates. This is how you communicate decisions, interfaces, discoveries, and questions.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+  - agentId (required): Your identifier
+  - shareType (required): One of:
+      - "context": Background information
+      - "decision": Architectural/design choice
+      - "interface": API contract or function signature
+      - "discovery": Something learned about the codebase
+      - "integration": How to connect with your code
+      - "question": Ask teammates for help
+      - "answer": Reply to a question
+  - title (required): Short title (max 200 chars)
+  - content (required): Detailed content (max 5000 chars)
+  - relatedFiles (optional): Array of related file paths
+  - replyToId (optional): Share ID this answers (for "answer" type)
+
+Returns: { id, sprintId, agentId, shareType, title, content, createdAt }
+```
+
+#### `scrum_sprint_check`
+
+Periodic sync to see teammate updates. Call this every few changes to stay coordinated.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+  - agentId (required): Your identifier
+  - focusArea (optional): Filter by your focus area
+
+Returns: {
+  teammates: [{ agentId, workingOn, focusArea }],
+  unansweredQuestions: [{ id, title, agentId, createdAt }],
+  interfaces: [{ id, title, agentId, relatedFiles }],
+  integrations: [{ id, title, agentId }],
+  relevantToYourFocus: number | "no focus area set",
+  message: string
+}
+```
+
+#### `scrum_sprint_leave`
+
+Leave a sprint when your work is complete.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+  - agentId (required): Your identifier
+
+Returns: { status, left, message }
+```
+
+#### `scrum_sprint_members`
+
+List all agents currently in a sprint.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+
+Returns: { sprintId, count, members }
+```
+
+#### `scrum_sprint_shares`
+
+List shared context items, optionally filtered by type.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+  - shareType (optional): Filter by type
+  - limit (optional): Max results (default 100)
+
+Returns: { sprintId, count, shares }
+```
+
+#### `scrum_sprint_get`
+
+Get sprint details by ID.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+
+Returns: { sprint, members }
+```
+
+#### `scrum_sprint_for_task`
+
+Get the active sprint for a task.
+
+```
+Inputs:
+  - taskId (required): Task ID
+
+Returns: { sprint, members } or { status: "no_sprint", message }
+```
+
+#### `scrum_sprint_list`
+
+List sprints with optional filters.
+
+```
+Inputs:
+  - taskId (optional): Filter by task
+  - status (optional): Filter by status ("active", "completed", "abandoned")
+
+Returns: { count, sprints }
+```
+
+#### `scrum_sprint_complete`
+
+Mark a sprint as completed.
+
+```
+Inputs:
+  - sprintId (required): Sprint ID
+
+Returns: { status, sprint, message }
+```
+
+**Sprint Workflow Example:**
+
+```
+# Orchestrator creates sprint
+sprint = scrum_sprint_create(taskId: "auth-task", goal: "Implement full auth")
+
+# Sub-agents join with their focus
+scrum_sprint_join(sprint.id, "agent-backend", workingOn: "JWT service", focusArea: "backend")
+scrum_sprint_join(sprint.id, "agent-frontend", workingOn: "Login form", focusArea: "frontend")
+
+# Backend agent shares decisions and interfaces
+scrum_sprint_share(sprint.id, "agent-backend", "decision", "Using bcrypt for passwords", "...")
+scrum_sprint_share(sprint.id, "agent-backend", "interface", "AuthService API", "POST /auth/signin...")
+
+# Frontend agent checks context before coding
+context = scrum_sprint_context(sprint.id)
+# → Now knows about bcrypt decision and API contract
+
+# Frontend agent asks a question
+scrum_sprint_share(sprint.id, "agent-frontend", "question", "Where to store refresh token?", "...")
+
+# Backend agent sees and answers
+scrum_sprint_share(sprint.id, "agent-backend", "answer", "Use httpOnly cookies", "...", replyToId: question.id)
+
+# Agents do their work (standard SCRUM: intent → claim → edit → changelog → evidence)
+# Periodic check for updates
+scrum_sprint_check(sprint.id, "agent-frontend")
+
+# When done
+scrum_sprint_leave(sprint.id, "agent-frontend")
 ```
 
 ### Kanban Workflow
@@ -985,6 +1246,28 @@ The MCP server respects these environment variables:
 |----------|---------|-------------|
 | `SCRUM_DB_PATH` | `.scrum/scrum.sqlite` | SQLite database path |
 | `SCRUM_REPO_ROOT` | `.` | Repository root for file watching |
+| `SCRUM_STRICT_MODE` | `true` | Enable compliance enforcement on REST API (see below) |
+| `SCRUM_PORT` | `4177` | HTTP/WebSocket server port |
+| `SCRUM_BIND` | `127.0.0.1` | Server bind address |
+| `SCRUM_LOG_LEVEL` | `info` | Log level (fatal/error/warn/info/debug/trace/silent) |
+| `SCRUM_RATE_LIMIT_RPM` | `300` | API rate limit per minute |
+| `SCRUM_AUTH_ENABLED` | `false` | Enable API key authentication |
+| `SCRUM_API_KEYS` | - | Comma-separated API keys (if auth enabled) |
+
+### Strict Mode
+
+When `SCRUM_STRICT_MODE=true` (the default), the REST API enforces compliance on:
+
+1. **Claim Release** (`DELETE /api/claims`) - Blocked if:
+   - Modified files not declared in intent
+   - Boundary files (declared as off-limits) were touched
+
+2. **Task Completion** (`PATCH /api/tasks/:id` to status `done`) - Blocked if:
+   - Any agent working on the task has failed compliance
+
+Set `SCRUM_STRICT_MODE=false` to allow dashboard/human overrides for edge cases.
+
+**Note:** MCP tools always enforce compliance regardless of this setting.
 
 ## Troubleshooting
 
@@ -1026,6 +1309,22 @@ When running multiple agents:
 4. Keep claim TTLs short (5-15 minutes) to avoid blocking others
 5. Use dependencies to coordinate work order between agents
 6. Add comments to communicate status and handoffs
+
+### Sprint Collaboration (v0.5.0)
+
+For complex tasks requiring multiple agents to integrate:
+
+1. **Orchestrator** creates a Sprint: `scrum_sprint_create(taskId, goal)`
+2. **Sub-agents** join with focus areas: `scrum_sprint_join(sprintId, agentId, workingOn, focusArea)`
+3. **Before coding**, check context: `scrum_sprint_context(sprintId)`
+4. **Share decisions** and interfaces: `scrum_sprint_share(sprintId, agentId, shareType, title, content)`
+5. **Check periodically**: `scrum_sprint_check(sprintId, agentId)`
+6. **Answer questions** from teammates via `shareType: "answer"` with `replyToId`
+7. **Leave when done**: `scrum_sprint_leave(sprintId, agentId)`
+
+This prevents integration mismatches where agents build incompatible code.
+
+See [docs/AGENT_INSTRUCTIONS.md](AGENT_INSTRUCTIONS.md) for the complete agent workflow guide.
 
 ## The SCRUM Contract
 

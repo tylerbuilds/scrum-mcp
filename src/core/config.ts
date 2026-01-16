@@ -8,7 +8,21 @@ const EnvSchema = z.object({
   SCRUM_RATE_LIMIT_RPM: z.coerce.number().int().positive().default(300),
   SCRUM_LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
-    .default('info')
+    .default('info'),
+  // Strict mode: enforce compliance on REST API (not just MCP)
+  // Default: true (recommended for production)
+  // Set to false to allow dashboard/human overrides
+  SCRUM_STRICT_MODE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true'),
+  // Sprint mode: enable collaborative Sprint features for multi-agent work
+  // Default: true (recommended for teams with sub-agents)
+  // When enabled, agents are prompted to use Sprint for coordinated work
+  SCRUM_SPRINT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform(v => v === 'true')
 });
 
 export type ScrumConfig = z.infer<typeof EnvSchema>;

@@ -1,6 +1,76 @@
-import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { TaskCreateSchema, IntentPostSchema, ClaimCreateSchema, EvidenceAttachSchema, TaskUpdateSchema, BoardQuerySchema, CommentAddSchema, CommentUpdateSchema, CommentListQuery, BlockerAddSchema, BlockerQuerySchema, DependencyAddSchema, WipLimitSetSchema, MetricsQuerySchema, VelocityQuerySchema, AgingWipQuerySchema } from './schemas';
-import type { ScrumState } from '../core/state';
+import type { FastifyInstance } from 'fastify';
+import { authMiddleware } from '../core/auth.js';
+import {
+  // Task schemas
+  TaskCreateSchema,
+  TaskListQuerySchema,
+  TaskIdParamsSchema,
+  TaskUpdateSchema,
+  BoardQuerySchema,
+  // Intent schemas
+  IntentPostSchema,
+  // Claim schemas
+  ClaimCreateSchema,
+  ClaimReleaseSchema,
+  ClaimExtendRestSchema,
+  // Evidence schemas
+  EvidenceAttachSchema,
+  // Comment schemas
+  CommentAddSchema,
+  CommentUpdateSchema,
+  CommentListQuerySchema,
+  CommentIdParamsSchema,
+  // Blocker schemas
+  BlockerAddSchema,
+  BlockerQuerySchema,
+  BlockerIdParamsSchema,
+  // Dependency schemas
+  DependencyAddBodySchema,
+  DependencyIdParamsSchema,
+  // WIP Limit schemas
+  WipLimitSetSchema,
+  // Metrics schemas
+  MetricsQuerySchema,
+  VelocityQuerySchema,
+  AgingWipQuerySchema,
+  // Agent schemas
+  AgentRegisterSchema,
+  AgentsListQuerySchema,
+  // Dead Work schemas
+  DeadWorkQuerySchema,
+  // Gate schemas
+  GateDefineRestSchema,
+  GateRunRestSchema,
+  GateIdParamsSchema,
+  TaskStatusEnumWithoutCancelled,
+  // Template schemas
+  TemplateCreateSchema,
+  TemplateIdParamsSchema,
+  TaskFromTemplateRestSchema,
+  // Webhook schemas
+  WebhookRegisterSchema,
+  WebhookUpdateRestSchema,
+  WebhookIdParamsSchema,
+  WebhooksListQuerySchema,
+  // Misc schemas
+  FeedQuerySchema,
+  LimitQuerySchema,
+  // Changelog schemas
+  ChangelogLogSchema,
+  // Compliance schemas
+  ComplianceTaskParamsSchema,
+  ComplianceAgentParamsSchema,
+  // Sprint schemas
+  SprintCreateSchema,
+  SprintIdParamsSchema,
+  SprintListQuerySchema,
+  SprintJoinRestSchema,
+  SprintLeaveRestSchema,
+  SprintShareRestSchema,
+  SprintSharesQuerySchema
+} from './schemas.js';
+import type { ScrumState } from '../core/state.js';
+import type { ScrumConfig } from '../core/config.js';
 import { z } from 'zod';
 
 function ok<T>(data: T) {
@@ -11,46 +81,12 @@ function bad(message: string) {
   return { ok: false as const, error: message };
 }
 
-// Query/Param schemas
-const TaskListQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(200).optional()
-});
-
-const TaskIdParams = z.object({
-  id: z.string().min(4)
-});
-
-const ClaimReleaseSchema = z.object({
-  agentId: z.string().min(1).max(120),
-  files: z.array(z.string().min(1)).optional()
-});
-
-const FeedQuery = z.object({
-  limit: z.coerce.number().int().min(1).max(500).optional()
-});
-
-const CommentIdParams = z.object({
-  id: z.string().min(4)
-});
-
-const BlockerIdParams = z.object({
-  id: z.string().min(4)
-});
-
-const DependencyIdParams = z.object({
-  id: z.string().min(4)
-});
-
-const DependencyAddBody = z.object({
-  dependsOnTaskId: z.string().min(4)
-});
-
-export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
+export async function registerRoutes(app: FastifyInstance, state: ScrumState, config: ScrumConfig) {
   // Enable CORS for frontend
   app.addHook('onRequest', async (request, reply) => {
     reply.header('Access-Control-Allow-Origin', '*');
     reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    reply.header('Access-Control-Allow-Headers', 'Content-Type');
+    reply.header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
     if (request.method === 'OPTIONS') {
       return reply.status(204).send();
     }
@@ -79,7 +115,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   app.get('/api/status', async () => ok(state.status()));
 
   app.get('/api/feed', async (req, reply) => {
-    const parsed = FeedQuery.safeParse(req.query);
+    const parsed = FeedQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
     return ok(state.getFeed(parsed.data.limit ?? 100));
   });
@@ -102,13 +138,13 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks', async (req, reply) => {
-    const parsed = TaskListQuery.safeParse(req.query);
+    const parsed = TaskListQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
     return ok(state.listTasks(parsed.data.limit ?? 50));
   });
 
   app.get('/api/tasks/:id', async (req, reply) => {
-    const parsed = TaskIdParams.safeParse(req.params);
+    const parsed = TaskIdParamsSchema.safeParse(req.params);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
     const task = state.getTask(parsed.data.id);
     if (!task) return reply.status(404).send(bad('Task not found'));
@@ -125,10 +161,27 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.patch('/api/tasks/:id', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = TaskUpdateSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    // STRICT MODE: Compliance enforcement for done transitions
+    if (config.SCRUM_STRICT_MODE && bodyParsed.data.status === 'done') {
+      const taskId = paramsParsed.data.id;
+      const agents = state.getTaskAgents(taskId);
+
+      for (const agentId of agents) {
+        const compliance = state.checkCompliance(taskId, agentId);
+        if (!compliance.canComplete) {
+          return reply.status(403).send(bad(
+            `COMPLIANCE_BLOCKED: Agent ${agentId} has not met compliance requirements. ${compliance.summary}. ` +
+            `All agents must be compliant before marking task as done.`
+          ));
+        }
+      }
+    }
+
     try {
       const task = state.updateTask(paramsParsed.data.id, bodyParsed.data);
       return ok(task);
@@ -162,6 +215,38 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
     }
   });
 
+  // GET all intents (for dashboard)
+  app.get('/api/intents', async (req, reply) => {
+    const parsed = LimitQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const intents = state.listAllIntents(parsed.data.limit ?? 100);
+    return ok(intents);
+  });
+
+  // GET all evidence (for dashboard)
+  app.get('/api/evidence', async (req, reply) => {
+    const parsed = LimitQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const evidence = state.listAllEvidence(parsed.data.limit ?? 100);
+    return ok(evidence);
+  });
+
+  // GET changelog (for dashboard)
+  app.get('/api/changelog', async (req, reply) => {
+    const parsed = LimitQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const entries = state.searchChangelog({ limit: parsed.data.limit ?? 100 });
+    return ok({ count: entries.length, entries });
+  });
+
+  // POST changelog entry
+  app.post('/api/changelog', async (req, reply) => {
+    const parsed = ChangelogLogSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const entry = state.logChange(parsed.data);
+    return ok(entry);
+  });
+
   app.post('/api/claims', async (req, reply) => {
     const parsed = ClaimCreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
@@ -187,14 +272,8 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   app.get('/api/claims', async () => ok(state.listActiveClaims()));
 
   // Extend claim TTL without releasing
-  const ClaimExtendSchema = z.object({
-    agentId: z.string().min(1).max(120),
-    files: z.array(z.string().min(1)).min(1).max(200).optional(),
-    additionalSeconds: z.coerce.number().int().min(30).max(3600).default(300)
-  });
-
   app.patch('/api/claims/extend', async (req, reply) => {
-    const parsed = ClaimExtendSchema.safeParse(req.body);
+    const parsed = ClaimExtendRestSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
 
     const { agentId, files, additionalSeconds } = parsed.data;
@@ -224,6 +303,29 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
           'You must attach evidence (POST /api/evidence) proving your work before releasing claims. No receipts = no release.'
         ));
       }
+
+      // STRICT MODE: Compliance enforcement on REST API (default: on)
+      if (config.SCRUM_STRICT_MODE) {
+        for (const taskId of evidenceCheck.taskIds) {
+          const compliance = state.checkCompliance(taskId, parsed.data.agentId);
+
+          // Block if undeclared files modified
+          if (!compliance.checks.filesMatch.passed && compliance.checks.filesMatch.undeclared.length > 0) {
+            return reply.status(403).send(bad(
+              `COMPLIANCE_FAILED: Undeclared files modified: ${compliance.checks.filesMatch.undeclared.join(', ')}. ` +
+              `Update your intent to include these files, or revert the changes.`
+            ));
+          }
+
+          // Block if boundary violations
+          if (!compliance.checks.boundariesRespected.passed) {
+            return reply.status(403).send(bad(
+              `BOUNDARY_VIOLATION: You modified files you declared as off-limits: ${compliance.checks.boundariesRespected.violations.join(', ')}. ` +
+              `Revert these changes before releasing.`
+            ));
+          }
+        }
+      }
     }
 
     const released = state.releaseClaims(parsed.data.agentId, parsed.data.files);
@@ -244,7 +346,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   // ==================== COMMENTS ====================
 
   app.post('/api/tasks/:id/comments', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = CommentAddSchema.omit({ taskId: true }).safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
@@ -264,16 +366,16 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks/:id/comments', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const queryParsed = CommentListQuery.safeParse(req.query);
+    const queryParsed = CommentListQuerySchema.safeParse(req.query);
     if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
     const comments = state.listComments(paramsParsed.data.id, queryParsed.data.limit ?? 50);
     return ok(comments);
   });
 
   app.patch('/api/comments/:id', async (req, reply) => {
-    const paramsParsed = CommentIdParams.safeParse(req.params);
+    const paramsParsed = CommentIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = CommentUpdateSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
@@ -289,7 +391,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.delete('/api/comments/:id', async (req, reply) => {
-    const paramsParsed = CommentIdParams.safeParse(req.params);
+    const paramsParsed = CommentIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const deleted = state.deleteComment(paramsParsed.data.id);
     if (!deleted) {
@@ -301,7 +403,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   // ==================== BLOCKERS ====================
 
   app.post('/api/tasks/:id/blockers', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = BlockerAddSchema.omit({ taskId: true }).safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
@@ -310,7 +412,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
         taskId: paramsParsed.data.id,
         description: bodyParsed.data.description,
         blockingTaskId: bodyParsed.data.blockingTaskId,
-        createdBy: bodyParsed.data.createdBy
+        agentId: bodyParsed.data.agentId
       });
       return ok(blocker);
     } catch (e: any) {
@@ -325,7 +427,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks/:id/blockers', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const queryParsed = BlockerQuerySchema.safeParse(req.query);
     if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
@@ -336,7 +438,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.patch('/api/blockers/:id', async (req, reply) => {
-    const paramsParsed = BlockerIdParams.safeParse(req.params);
+    const paramsParsed = BlockerIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     try {
       const blocker = state.resolveBlocker(paramsParsed.data.id);
@@ -352,9 +454,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   // ==================== DEPENDENCIES ====================
 
   app.post('/api/tasks/:id/dependencies', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const bodyParsed = DependencyAddBody.safeParse(req.body);
+    const bodyParsed = DependencyAddBodySchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
     try {
       const dependency = state.addDependency(paramsParsed.data.id, bodyParsed.data.dependsOnTaskId);
@@ -380,7 +482,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks/:id/dependencies', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const task = state.getTask(paramsParsed.data.id);
     if (!task) return reply.status(404).send(bad('Task not found'));
@@ -390,7 +492,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.delete('/api/dependencies/:id', async (req, reply) => {
-    const paramsParsed = DependencyIdParams.safeParse(req.params);
+    const paramsParsed = DependencyIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const deleted = state.removeDependency(paramsParsed.data.id);
     if (!deleted) {
@@ -400,7 +502,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks/:id/ready', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const task = state.getTask(paramsParsed.data.id);
     if (!task) return reply.status(404).send(bad('Task not found'));
@@ -461,7 +563,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/tasks/:id/metrics', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const metrics = state.getTaskMetrics(paramsParsed.data.id);
     if (!metrics) {
@@ -472,12 +574,6 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // ==================== AGENT REGISTRY ====================
 
-  const AgentRegisterSchema = z.object({
-    agentId: z.string().min(1).max(120),
-    capabilities: z.array(z.string()).min(1).max(20),
-    metadata: z.record(z.unknown()).optional()
-  });
-
   app.post('/api/agents', async (req, reply) => {
     const parsed = AgentRegisterSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
@@ -487,9 +583,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   app.get('/api/agents', async (req, reply) => {
-    const parsed = z.object({
-      includeOffline: z.coerce.boolean().optional()
-    }).safeParse(req.query);
+    const parsed = AgentsListQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
 
     const agents = state.listAgents({ includeOffline: parsed.data.includeOffline });
@@ -508,9 +602,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   // ==================== DEAD WORK DETECTION ====================
 
   app.get('/api/dead-work', async (req, reply) => {
-    const parsed = z.object({
-      staleDays: z.coerce.number().min(0.5).max(30).optional()
-    }).safeParse(req.query);
+    const parsed = DeadWorkQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
 
     const deadWork = state.findDeadWork({ staleDays: parsed.data.staleDays });
@@ -525,32 +617,11 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // ==================== APPROVAL GATES ====================
 
-  const GateTypeSchema = z.enum(['lint', 'test', 'build', 'review', 'custom']);
-  const TaskStatusEnumSchema = z.enum(['backlog', 'todo', 'in_progress', 'review', 'done']);
-
-  const GateDefineSchema = z.object({
-    gateType: GateTypeSchema,
-    command: z.string().min(1).max(2000),
-    triggerStatus: TaskStatusEnumSchema,
-    required: z.boolean().optional()
-  });
-
-  const GateRunSchema = z.object({
-    agentId: z.string().min(1).max(120),
-    passed: z.boolean(),
-    output: z.string().max(500000).optional(),
-    durationMs: z.number().optional()
-  });
-
-  const GateIdParams = z.object({
-    gateId: z.string().min(4)
-  });
-
   // Define a gate for a task
   app.post('/api/tasks/:id/gates', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const bodyParsed = GateDefineSchema.safeParse(req.body);
+    const bodyParsed = GateDefineRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
     try {
       const gate = state.defineGate({
@@ -571,7 +642,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // List gates for a task
   app.get('/api/tasks/:id/gates', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const gates = state.listGates(paramsParsed.data.id);
     return ok({ count: gates.length, gates });
@@ -579,9 +650,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Record a gate run result
   app.post('/api/gates/:gateId/runs', async (req, reply) => {
-    const paramsParsed = GateIdParams.safeParse(req.params);
+    const paramsParsed = GateIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const bodyParsed = GateRunSchema.safeParse(req.body);
+    const bodyParsed = GateRunRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
 
     // Require taskId in body to associate the run with the correct task
@@ -609,10 +680,10 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Get gate status for a task and target status
   app.get('/api/tasks/:id/gate-status', async (req, reply) => {
-    const paramsParsed = TaskIdParams.safeParse(req.params);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const queryParsed = z.object({
-      forStatus: TaskStatusEnumSchema
+      forStatus: TaskStatusEnumWithoutCancelled
     }).safeParse(req.query);
     if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
 
@@ -621,26 +692,6 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
   });
 
   // ==================== TASK TEMPLATES ====================
-
-  const TemplateCreateSchema = z.object({
-    name: z.string().min(1).max(100),
-    titlePattern: z.string().min(1).max(200),
-    descriptionTemplate: z.string().max(5000).optional(),
-    defaultStatus: TaskStatusEnumSchema.optional(),
-    defaultPriority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-    defaultLabels: z.array(z.string()).optional(),
-    defaultStoryPoints: z.number().int().min(1).max(21).optional(),
-    gates: z.array(z.object({
-      gateType: GateTypeSchema,
-      command: z.string(),
-      triggerStatus: TaskStatusEnumSchema
-    })).optional(),
-    checklist: z.array(z.string()).optional()
-  });
-
-  const TemplateIdParams = z.object({
-    nameOrId: z.string().min(1)
-  });
 
   // Create a template
   app.post('/api/templates', async (req, reply) => {
@@ -665,7 +716,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Get a template by name or ID
   app.get('/api/templates/:nameOrId', async (req, reply) => {
-    const paramsParsed = TemplateIdParams.safeParse(req.params);
+    const paramsParsed = TemplateIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const template = state.getTemplate(paramsParsed.data.nameOrId);
     if (!template) {
@@ -676,20 +727,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Create a task from a template
   app.post('/api/templates/:nameOrId/create-task', async (req, reply) => {
-    const paramsParsed = TemplateIdParams.safeParse(req.params);
+    const paramsParsed = TemplateIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const bodyParsed = z.object({
-      variables: z.record(z.string()),
-      overrides: z.object({
-        title: z.string().optional(),
-        description: z.string().optional(),
-        status: z.enum(['backlog', 'todo', 'in_progress', 'review', 'done', 'cancelled']).optional(),
-        priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-        assignedAgent: z.string().optional(),
-        labels: z.array(z.string()).optional(),
-        storyPoints: z.number().optional()
-      }).optional()
-    }).safeParse(req.body);
+    const bodyParsed = TaskFromTemplateRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
 
     const template = state.getTemplate(paramsParsed.data.nameOrId);
@@ -707,31 +747,6 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // ==================== WEBHOOKS ====================
 
-  const WebhookEventTypeSchema = z.enum([
-    'task.created', 'task.updated', 'task.completed',
-    'intent.posted', 'claim.created', 'claim.conflict', 'claim.released',
-    'evidence.attached', 'gate.passed', 'gate.failed'
-  ]);
-
-  const WebhookRegisterSchema = z.object({
-    name: z.string().min(1).max(100),
-    url: z.string().url(),
-    events: z.array(WebhookEventTypeSchema).min(1),
-    headers: z.record(z.string()).optional(),
-    secret: z.string().optional()
-  });
-
-  const WebhookUpdateSchema = z.object({
-    url: z.string().url().optional(),
-    events: z.array(WebhookEventTypeSchema).optional(),
-    headers: z.record(z.string()).optional(),
-    enabled: z.boolean().optional()
-  });
-
-  const WebhookIdParams = z.object({
-    webhookId: z.string().min(4)
-  });
-
   // Register a webhook
   app.post('/api/webhooks', async (req, reply) => {
     const bodyParsed = WebhookRegisterSchema.safeParse(req.body);
@@ -742,9 +757,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // List webhooks
   app.get('/api/webhooks', async (req, reply) => {
-    const parsed = z.object({
-      enabledOnly: z.coerce.boolean().optional()
-    }).safeParse(req.query);
+    const parsed = WebhooksListQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
     const webhooks = state.listWebhooks({ enabledOnly: parsed.data.enabledOnly });
     return ok({ count: webhooks.length, webhooks });
@@ -752,9 +765,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Update a webhook
   app.patch('/api/webhooks/:webhookId', async (req, reply) => {
-    const paramsParsed = WebhookIdParams.safeParse(req.params);
+    const paramsParsed = WebhookIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const bodyParsed = WebhookUpdateSchema.safeParse(req.body);
+    const bodyParsed = WebhookUpdateRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
     try {
       const webhook = state.updateWebhook(paramsParsed.data.webhookId, bodyParsed.data);
@@ -772,7 +785,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Delete a webhook
   app.delete('/api/webhooks/:webhookId', async (req, reply) => {
-    const paramsParsed = WebhookIdParams.safeParse(req.params);
+    const paramsParsed = WebhookIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const deleted = state.deleteWebhook(paramsParsed.data.webhookId);
     if (!deleted) {
@@ -783,11 +796,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
 
   // Get webhook deliveries
   app.get('/api/webhooks/:webhookId/deliveries', async (req, reply) => {
-    const paramsParsed = WebhookIdParams.safeParse(req.params);
+    const paramsParsed = WebhookIdParamsSchema.safeParse(req.params);
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
-    const queryParsed = z.object({
-      limit: z.coerce.number().int().min(1).max(100).optional()
-    }).safeParse(req.query);
+    const queryParsed = LimitQuerySchema.safeParse(req.query);
     if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
 
     const deliveries = state.listWebhookDeliveries(
@@ -796,4 +807,287 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState) {
     );
     return ok({ count: deliveries.length, deliveries });
   });
+
+  // ==================== COMPLIANCE ====================
+
+  // Check compliance for a specific agent on a task
+  app.get('/api/compliance/:taskId/:agentId', async (req, reply) => {
+    const paramsParsed = ComplianceAgentParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const task = state.getTask(paramsParsed.data.taskId);
+    if (!task) {
+      return reply.status(404).send(bad('Task not found'));
+    }
+
+    const result = state.checkCompliance(paramsParsed.data.taskId, paramsParsed.data.agentId);
+    return ok(result);
+  });
+
+  // Check compliance for all agents on a task
+  app.get('/api/compliance/:taskId', async (req, reply) => {
+    const paramsParsed = ComplianceTaskParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const task = state.getTask(paramsParsed.data.taskId);
+    if (!task) {
+      return reply.status(404).send(bad('Task not found'));
+    }
+
+    const agents = state.getTaskAgents(paramsParsed.data.taskId);
+    const results = agents.map(agentId => {
+      const check = state.checkCompliance(paramsParsed.data.taskId, agentId);
+      return check;
+    });
+
+    return ok({
+      taskId: paramsParsed.data.taskId,
+      taskTitle: task.title,
+      agentCount: agents.length,
+      allCompliant: results.every(r => r.canComplete),
+      agents: results
+    });
+  });
+
+  // ==================== SPRINTS (Collaborative Multi-Agent Work) ====================
+
+  // Helper function for Sprint disabled response
+  const sprintDisabledResponse = (reply: any) => {
+    return reply.status(503).send({
+      ok: false,
+      error: 'Sprint features are disabled',
+      message: 'Set SCRUM_SPRINT_ENABLED=true to enable collaborative multi-agent work.',
+      hint: 'Use standard SCRUM workflow (intent, claim, evidence) for solo work.'
+    });
+  };
+
+  // Create a sprint
+  app.post('/api/sprints', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const bodyParsed = SprintCreateSchema.safeParse(req.body);
+    if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    const task = state.getTask(bodyParsed.data.taskId);
+    if (!task) {
+      return reply.status(404).send(bad('Task not found'));
+    }
+
+    const sprint = state.createSprint(bodyParsed.data);
+    return ok({ sprint, task: { id: task.id, title: task.title } });
+  });
+
+  // List sprints
+  app.get('/api/sprints', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const queryParsed = SprintListQuerySchema.safeParse(req.query);
+    if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
+
+    const sprints = state.listSprints({
+      taskId: queryParsed.data.taskId,
+      status: queryParsed.data.status
+    });
+    return ok({ count: sprints.length, sprints });
+  });
+
+  // Get a sprint by ID
+  app.get('/api/sprints/:sprintId', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const members = state.getSprintMembers(paramsParsed.data.sprintId);
+    return ok({ sprint, members });
+  });
+
+  // Get sprint for a task
+  app.get('/api/tasks/:id/sprint', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = TaskIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const task = state.getTask(paramsParsed.data.id);
+    if (!task) {
+      return reply.status(404).send(bad('Task not found'));
+    }
+
+    const sprint = state.getSprintForTask(paramsParsed.data.id);
+    if (!sprint) {
+      return ok({ sprint: null, message: 'No active sprint for this task' });
+    }
+
+    const members = state.getSprintMembers(sprint.id);
+    return ok({ sprint, members });
+  });
+
+  // Complete a sprint
+  app.post('/api/sprints/:sprintId/complete', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const sprint = state.completeSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    return ok({ sprint, message: 'Sprint completed' });
+  });
+
+  // Join a sprint
+  app.post('/api/sprints/:sprintId/join', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const bodyParsed = SprintJoinRestSchema.safeParse(req.body);
+    if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const member = state.joinSprint({
+      sprintId: paramsParsed.data.sprintId,
+      ...bodyParsed.data
+    });
+
+    const members = state.getSprintMembers(paramsParsed.data.sprintId);
+    return ok({ member, teamSize: members.length });
+  });
+
+  // Leave a sprint
+  app.post('/api/sprints/:sprintId/leave', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const bodyParsed = SprintLeaveRestSchema.safeParse(req.body);
+    if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    const left = state.leaveSprint(paramsParsed.data.sprintId, bodyParsed.data.agentId);
+    return ok({ left });
+  });
+
+  // Get sprint members
+  app.get('/api/sprints/:sprintId/members', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const members = state.getSprintMembers(paramsParsed.data.sprintId);
+    return ok({ count: members.length, members });
+  });
+
+  // Share with sprint
+  app.post('/api/sprints/:sprintId/share', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const bodyParsed = SprintShareRestSchema.safeParse(req.body);
+    if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const share = state.shareWithSprint({
+      sprintId: paramsParsed.data.sprintId,
+      ...bodyParsed.data
+    });
+
+    return ok({ share });
+  });
+
+  // Get sprint shares
+  app.get('/api/sprints/:sprintId/shares', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const queryParsed = SprintSharesQuerySchema.safeParse(req.query);
+    if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const shares = state.getSprintShares(paramsParsed.data.sprintId, {
+      shareType: queryParsed.data.shareType,
+      limit: queryParsed.data.limit
+    });
+
+    return ok({ count: shares.length, shares });
+  });
+
+  // Get sprint context (full state)
+  app.get('/api/sprints/:sprintId/context', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const context = state.getSprintContext(paramsParsed.data.sprintId);
+    if (!context) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    // Organize shares by type
+    const decisions = context.shares.filter(s => s.shareType === 'decision');
+    const interfaces = context.shares.filter(s => s.shareType === 'interface');
+    const discoveries = context.shares.filter(s => s.shareType === 'discovery');
+    const integrations = context.shares.filter(s => s.shareType === 'integration');
+    const unansweredQuestions = state.getUnansweredQuestions(paramsParsed.data.sprintId);
+
+    return ok({
+      sprint: context.sprint,
+      members: context.members,
+      allFiles: context.allFiles,
+      allBoundaries: context.allBoundaries,
+      summary: {
+        memberCount: context.members.length,
+        decisionsCount: decisions.length,
+        interfacesCount: interfaces.length,
+        discoveriesCount: discoveries.length,
+        integrationsCount: integrations.length,
+        unansweredQuestionsCount: unansweredQuestions.length
+      },
+      decisions,
+      interfaces,
+      discoveries,
+      integrations,
+      unansweredQuestions
+    });
+  });
+
+  // Get unanswered questions in sprint
+  app.get('/api/sprints/:sprintId/questions', async (req, reply) => {
+    if (!config.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse(reply);
+    const paramsParsed = SprintIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const sprint = state.getSprint(paramsParsed.data.sprintId);
+    if (!sprint) {
+      return reply.status(404).send(bad('Sprint not found'));
+    }
+
+    const questions = state.getUnansweredQuestions(paramsParsed.data.sprintId);
+    return ok({ count: questions.length, questions });
+  });
+
+  // ==================== AUTH MIDDLEWARE ====================
+  // Register auth middleware AFTER routes - opt-in via SCRUM_AUTH_ENABLED
+  app.addHook('preHandler', authMiddleware);
 }

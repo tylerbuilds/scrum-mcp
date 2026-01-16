@@ -14,6 +14,8 @@ The goal is simple: agents can work in chaos, but they can also see each other. 
 - **WIP limits** (prevent overloading columns)
 - **Metrics** (cycle time, lead time, velocity, aging WIP)
 - **Real-time events** (file change stream, task updates, gate results)
+- **Compliance verification** (ensure agents do what they declared)
+- **Sprint collaboration** (shared context for multi-agent teams)
 
 ## No surprises policy
 
@@ -158,6 +160,8 @@ Key settings:
 - `SCRUM_REPO_ROOT` (default `.`)
 - `SCRUM_DB_PATH` (default `./.scrum/scrum.sqlite`)
 - `SCRUM_RATE_LIMIT_RPM` (default `300`)
+- `SCRUM_STRICT_MODE` (default `true`) - Enforce compliance on REST API
+- `SCRUM_SPRINT_ENABLED` (default `true`) - Enable Sprint collaboration features
 
 ## Security posture
 
@@ -302,7 +306,27 @@ cp templates/.mcp.json.template /your/project/.mcp.json
 | `scrum_agents_list` | List registered agents with status |
 | `scrum_dead_work` | Find abandoned tasks and stale claims |
 
+**Compliance Verification** (v0.4.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_compliance_check` | Verify work matches declared intent (score, violations, next steps) |
+
+**Sprint Collaboration** (v0.5.0)
+
+| Tool | Description |
+|------|-------------|
+| `scrum_sprint_create` | Create a sprint for multi-agent collaboration on a task |
+| `scrum_sprint_join` | Join a sprint with your focus area |
+| `scrum_sprint_context` | Get full sprint context (decisions, interfaces, discoveries) |
+| `scrum_sprint_share` | Share decisions, interfaces, discoveries, questions with teammates |
+| `scrum_sprint_check` | Periodic sync to see teammate updates and unanswered questions |
+| `scrum_sprint_leave` | Leave sprint when your work is complete |
+| `scrum_sprint_members` | List all agents in a sprint |
+| `scrum_sprint_shares` | List shared context items (filtered by type) |
+
 See [docs/MCP.md](docs/MCP.md) for detailed tool documentation.
+See [docs/AGENT_INSTRUCTIONS.md](docs/AGENT_INSTRUCTIONS.md) for agent workflow guide.
 
 ## Enforced Workflow
 
@@ -313,8 +337,11 @@ SCRUM enforces quality at the server level:
 3. **Acceptance criteria required** - `scrum_intent_post` requires criteria (min 10 chars)
 4. **Dependency check** - `scrum_task_ready` verifies all dependencies are done before starting
 5. **WIP limit warnings** - `scrum_task_update` warns when column limits are exceeded
+6. **Compliance verification** (v0.4) - `scrum_claim_release` checks that modified files match declared intent
+7. **Boundary protection** (v0.4) - Files marked as boundaries cannot be touched
+8. **Sprint context** (v0.5) - Multi-agent teams share decisions and interfaces before coding
 
-This prevents agents from cutting corners.
+This prevents agents from cutting corners and ensures multi-agent coordination.
 
 ## Changelog Feature
 
@@ -354,8 +381,18 @@ The changelog automatically captures:
 6. ~~Add webhooks for event notifications.~~ Done! (v0.3.0)
 7. ~~Add agent registry for observability.~~ Done! (v0.3.0)
 8. ~~Add Orthanc dashboard for real-time monitoring.~~ Done! (v0.3.0)
-9. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
-10. Add HMAC signing for webhook payloads.
+9. ~~Add compliance verification to ensure agents do what they declared.~~ Done! (v0.4.0)
+10. ~~Add Sprint collaboration for multi-agent teams.~~ Done! (v0.5.0)
+11. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
+12. Add HMAC signing for webhook payloads.
+
+## Documentation
+
+- [MCP Tool Reference](docs/MCP.md) - Complete tool documentation
+- [Agent Instructions](docs/AGENT_INSTRUCTIONS.md) - Workflow guide for AI agents
+- [Case Study](docs/CASE_STUDY.md) - Multi-agent coordination evolution
+- [IDE Setup](docs/IDE-SETUP.md) - Setup guides for Claude Code, Cursor, etc.
+- [Operations Guide](docs/OPERATIONS.md) - Production deployment
 
 ## Author
 

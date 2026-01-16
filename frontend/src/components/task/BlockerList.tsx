@@ -10,7 +10,7 @@ export interface Blocker {
   blockingTaskId?: string;
   resolvedAt?: number;
   createdAt: number;
-  createdBy: string;
+  agentId: string;
 }
 
 interface BlockerListProps {
@@ -92,7 +92,7 @@ function BlockerItem({
           )}
 
           <div className="flex flex-wrap items-center gap-3 mt-2">
-            <AgentBadge agentId={blocker.createdBy} size="sm" />
+            <AgentBadge agentId={blocker.agentId} size="sm" />
             <span className="text-xs text-slate-500 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               {formatTimeAgo(blocker.createdAt)}

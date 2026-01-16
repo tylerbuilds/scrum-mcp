@@ -327,12 +327,12 @@ describe('ScrumState', () => {
       const blocker = state.addBlocker({
         taskId: task.id,
         description: 'Waiting for API spec',
-        createdBy: 'claude-code'
+        agentId: 'claude-code'
       });
 
       expect(blocker.taskId).toBe(task.id);
       expect(blocker.description).toBe('Waiting for API spec');
-      expect(blocker.createdBy).toBe('claude-code');
+      expect(blocker.agentId).toBe('claude-code');
       expect(blocker.resolvedAt).toBeUndefined();
 
       const blockers = state.listBlockers(task.id);
@@ -348,7 +348,7 @@ describe('ScrumState', () => {
       const blocker = state.addBlocker({
         taskId: task.id,
         description: 'Waiting for review',
-        createdBy: 'agent'
+        agentId: 'agent'
       });
 
       const resolved = state.resolveBlocker(blocker.id);
@@ -366,12 +366,12 @@ describe('ScrumState', () => {
       const blocker1 = state.addBlocker({
         taskId: task.id,
         description: 'Blocker 1',
-        createdBy: 'agent'
+        agentId: 'agent'
       });
       state.addBlocker({
         taskId: task.id,
         description: 'Blocker 2',
-        createdBy: 'agent'
+        agentId: 'agent'
       });
 
       state.resolveBlocker(blocker1.id);
@@ -394,7 +394,7 @@ describe('ScrumState', () => {
         taskId: task1.id,
         description: 'Blocked by Task 2',
         blockingTaskId: task2.id,
-        createdBy: 'agent'
+        agentId: 'agent'
       });
 
       expect(blocker.blockingTaskId).toBe(task2.id);
@@ -407,7 +407,7 @@ describe('ScrumState', () => {
       expect(() => state.addBlocker({
         taskId: 'nonexistent',
         description: 'test',
-        createdBy: 'agent'
+        agentId: 'agent'
       })).toThrow('Unknown taskId');
     });
 
@@ -420,7 +420,7 @@ describe('ScrumState', () => {
         taskId: task.id,
         description: 'test',
         blockingTaskId: 'nonexistent',
-        createdBy: 'agent'
+        agentId: 'agent'
       })).toThrow('Unknown blockingTaskId');
     });
   });

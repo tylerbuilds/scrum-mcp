@@ -193,9 +193,12 @@ function migrate(db: ScrumDb) {
 
     -- Performance indexes
     CREATE INDEX IF NOT EXISTS idx_intents_task_id ON intents(task_id);
+    CREATE INDEX IF NOT EXISTS idx_intents_agent_id ON intents(agent_id);
     CREATE INDEX IF NOT EXISTS idx_evidence_task_id ON evidence(task_id);
+    CREATE INDEX IF NOT EXISTS idx_evidence_agent_id ON evidence(agent_id);
     CREATE INDEX IF NOT EXISTS idx_claims_expires_at ON claims(expires_at);
     CREATE INDEX IF NOT EXISTS idx_claims_file_path ON claims(file_path);
+    CREATE INDEX IF NOT EXISTS idx_claims_agent_id ON claims(agent_id);
     CREATE INDEX IF NOT EXISTS idx_changelog_file_path ON changelog(file_path);
     CREATE INDEX IF NOT EXISTS idx_changelog_created_at ON changelog(created_at);
     CREATE INDEX IF NOT EXISTS idx_changelog_agent_id ON changelog(agent_id);
@@ -217,6 +220,9 @@ function migrate(db: ScrumDb) {
 
   // Kanban columns migration - add columns if they don't exist
   migrateKanbanColumns(db);
+
+  // Sprint tables for collaborative multi-agent work
+  migrateSprintTables(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -248,5 +254,77 @@ function migrateKanbanColumns(db: ScrumDb) {
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     CREATE INDEX IF NOT EXISTS idx_tasks_assigned_agent ON tasks(assigned_agent);
     CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
+    CREATE INDEX IF NOT EXISTS idx_tasks_completed_at ON tasks(completed_at);
+    CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
   `);
+}
+
+/**
+ * Sprint tables for collaborative multi-agent work
+ *
+ * A Sprint is NOT about control - it's about shared understanding.
+ * Agents are incentivized to understand each other's work to create
+ * better integrated systems.
+ */
+function migrateSprintTables(db: ScrumDb) {
+  db.exec(`
+    -- Sprints: collaborative spaces for task-focused teamwork
+    CREATE TABLE IF NOT EXISTS sprints (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      name TEXT,                  -- Optional sprint name
+      goal TEXT,                  -- What are we trying to achieve together?
+      status TEXT DEFAULT 'active',  -- active, completed, abandoned
+      created_at INTEGER NOT NULL,
+      completed_at INTEGER,
+      FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    -- Sprint members: who's in the sprint and what they're working on
+    CREATE TABLE IF NOT EXISTS sprint_members (
+      sprint_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      working_on TEXT NOT NULL,   -- Human-readable description of their focus
+      focus_area TEXT,            -- e.g., "backend", "frontend", "tests"
+      joined_at INTEGER NOT NULL,
+      left_at INTEGER,            -- NULL = still active
+      PRIMARY KEY(sprint_id, agent_id),
+      FOREIGN KEY(sprint_id) REFERENCES sprints(id) ON DELETE CASCADE
+    );
+
+    -- Sprint shares: how agents understand each other's work
+    -- This is the key collaborative primitive - sharing context, not control
+    CREATE TABLE IF NOT EXISTS sprint_shares (
+      id TEXT PRIMARY KEY,
+      sprint_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      share_type TEXT NOT NULL,   -- context, decision, interface, discovery, integration, question, answer
+      title TEXT NOT NULL,        -- Short summary
+      content TEXT NOT NULL,      -- Full detail
+      related_files_json TEXT,    -- Files this relates to
+      reply_to_id TEXT,           -- If answering a question
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY(sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
+      FOREIGN KEY(reply_to_id) REFERENCES sprint_shares(id) ON DELETE SET NULL
+    );
+
+    -- Link intents to sprints for aggregated file view
+    -- This column may already exist from a previous migration, so we check
+
+    -- Performance indexes
+    CREATE INDEX IF NOT EXISTS idx_sprints_task_id ON sprints(task_id);
+    CREATE INDEX IF NOT EXISTS idx_sprints_status ON sprints(status);
+    CREATE INDEX IF NOT EXISTS idx_sprint_members_agent_id ON sprint_members(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_sprint_shares_sprint_id ON sprint_shares(sprint_id);
+    CREATE INDEX IF NOT EXISTS idx_sprint_shares_type ON sprint_shares(share_type);
+    CREATE INDEX IF NOT EXISTS idx_sprint_shares_created_at ON sprint_shares(created_at);
+  `);
+
+  // Add sprint_id column to intents if not exists
+  const intentInfo = db.prepare("PRAGMA table_info(intents)").all() as Array<{ name: string }>;
+  const intentCols = new Set(intentInfo.map(col => col.name));
+  if (!intentCols.has('sprint_id')) {
+    db.exec(`ALTER TABLE intents ADD COLUMN sprint_id TEXT REFERENCES sprints(id) ON DELETE SET NULL`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_intents_sprint_id ON intents(sprint_id)`);
+  }
 }

@@ -96,7 +96,7 @@ export interface Blocker {
   blockingTaskId?: TaskId;  // Task that is blocking this task
   resolvedAt?: number;
   createdAt: number;
-  createdBy: string;
+  agentId: string;
 }
 
 export interface TaskDependency {
@@ -310,4 +310,75 @@ export interface WebhookDelivery {
   durationMs?: number;
   success: boolean;
   createdAt: number;
+}
+
+// ==================== SPRINT (Collaborative Space) ====================
+
+export type SprintId = string;
+export type SprintShareId = string;
+
+export type SprintStatus = 'active' | 'completed' | 'abandoned';
+
+/**
+ * A Sprint is a collaborative space where multiple sub-agents work on the same task.
+ * The goal is shared understanding, not control. Agents are incentivized to understand
+ * each other's code to create better integrated systems.
+ */
+export interface Sprint {
+  id: SprintId;
+  taskId: TaskId;
+  name?: string;
+  goal?: string;  // What are we trying to achieve together?
+  status: SprintStatus;
+  createdAt: number;
+  completedAt?: number;
+}
+
+/**
+ * A member of a sprint. Tracks what they're working on and their focus area.
+ */
+export interface SprintMember {
+  sprintId: SprintId;
+  agentId: string;
+  workingOn: string;          // What this agent is building (human readable)
+  focusArea?: string;         // e.g., "backend", "frontend", "tests", "auth"
+  joinedAt: number;
+  leftAt?: number;
+}
+
+/**
+ * Shared context within a sprint. This is how agents understand each other's work.
+ * Not about control - about collaboration.
+ */
+export type ShareType =
+  | 'context'      // Background info, codebase knowledge
+  | 'decision'     // Architectural/design decisions
+  | 'interface'    // API contracts, function signatures, exports
+  | 'discovery'    // "I found out that X works like Y"
+  | 'integration'  // "To integrate with my code, do X"
+  | 'question'     // Ask the group
+  | 'answer';      // Response to a question
+
+export interface SprintShare {
+  id: SprintShareId;
+  sprintId: SprintId;
+  agentId: string;
+  shareType: ShareType;
+  title: string;              // Short summary
+  content: string;            // Full detail
+  relatedFiles?: string[];    // Files this relates to
+  replyToId?: SprintShareId;  // If this is an answer to a question
+  createdAt: number;
+}
+
+/**
+ * Aggregated view of a sprint with all its context
+ */
+export interface SprintContext {
+  sprint: Sprint;
+  members: SprintMember[];
+  shares: SprintShare[];
+  // Aggregated from member intents
+  allFiles: string[];         // All files being touched by any member
+  allBoundaries: string[];    // All boundaries declared by any member
 }

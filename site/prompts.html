@@ -393,7 +393,102 @@ If `scrum_overlap_check` or `scrum_claim` returns conflicts:
 1. Check `scrum_claims_list()` to see who holds the files
 2. Wait for the other agent to release, OR
 3. Coordinate by creating an intent explaining your needs
-4. Work on non-conflicting files in the meantime</pre>
+4. Work on non-conflicting files in the meantime
+
+## Sprint Workflow (Multi-Agent Collaboration)
+
+When multiple sub-agents work on the same task, use Sprint for shared context:
+
+### If You're the Orchestrator
+
+1. Create the sprint:
+   ```
+   scrum_sprint_create(taskId: "task-id", goal: "Describe the integration goal")
+   ```
+2. Pass `sprintId` to sub-agents when spawning them
+
+### If You're a Sub-Agent (CRITICAL!)
+
+1. **Join the sprint** (do this FIRST):
+   ```
+   scrum_sprint_join(
+     sprintId: "sprint-abc",
+     agentId: "your-agent-id",
+     workingOn: "What you're implementing",
+     focusArea: "backend|frontend|tests|api|auth|..."
+   )
+   ```
+
+2. **Understand before coding** (ALWAYS do this before starting work):
+   ```
+   scrum_sprint_context(sprintId: "sprint-abc")
+   ```
+   Review:
+   - `members`: Who else is working and on what
+   - `decisions`: Architectural choices already made
+   - `interfaces`: API contracts to implement/use
+   - `discoveries`: Things others learned
+   - `unansweredQuestions`: Can you help answer any?
+
+3. **Do your work** (standard SCRUM: intent → claim → changes → changelog → evidence)
+
+4. **Share your work** (help teammates understand your code):
+   ```
+   # Share decisions
+   scrum_sprint_share(
+     sprintId, agentId,
+     shareType: "decision",
+     title: "Using bcrypt for passwords",
+     content: "Chose bcrypt over argon2 because..."
+   )
+
+   # Share interfaces (API contracts)
+   scrum_sprint_share(
+     sprintId, agentId,
+     shareType: "interface",
+     title: "AuthService API",
+     content: "POST /auth/signin { email, password } → { token }"
+   )
+
+   # Share discoveries
+   scrum_sprint_share(
+     sprintId, agentId,
+     shareType: "discovery",
+     title: "Found existing session middleware",
+     content: "Reuse src/middleware/session.ts"
+   )
+
+   # Ask questions
+   scrum_sprint_share(
+     sprintId, agentId,
+     shareType: "question",
+     title: "Where to store refresh tokens?",
+     content: "localStorage vs httpOnly cookie?"
+   )
+   ```
+
+5. **Check periodically** (every few changes):
+   ```
+   scrum_sprint_check(sprintId, agentId)
+   ```
+   Returns: teammates, unanswered questions, interfaces to implement
+
+6. **Complete and leave**:
+   ```
+   scrum_sprint_leave(sprintId, agentId)
+   ```
+
+### Share Types
+
+| Type | When to Use |
+|------|-------------|
+| context | Background info ("codebase uses TypeScript strict mode") |
+| decision | Architectural choices ("using JWT with 15min expiry") |
+| interface | API contracts ("POST /api/users { name, email }") |
+| discovery | Things you learned ("found validation utils in src/utils") |
+| integration | How to connect ("import AuthService from src/auth") |
+| question | Ask teammates ("should we use Redis for sessions?") |
+| answer | Reply to questions (use replyToId to link)</pre>
             </div>
           </div>
         </div>
@@ -477,7 +572,29 @@ Use a unique agentId like `cursor-{timestamp}` or `cursor-{random}`.
 If files are claimed by another agent:
 - Check `scrum_claims_list()` to see current claims
 - Wait or work on unclaimed files
-- Coordinate via intents</pre>
+- Coordinate via intents
+
+## Sprint Workflow (Multi-Agent Collaboration)
+
+When orchestrating multiple sub-agents on the same task:
+
+### Orchestrator Creates Sprint
+```
+scrum_sprint_create(taskId, goal: "Integration goal")
+→ Pass sprintId to sub-agents
+```
+
+### Sub-Agents Join and Collaborate
+1. **Join**: `scrum_sprint_join(sprintId, agentId, workingOn, focusArea)`
+2. **Context**: `scrum_sprint_context(sprintId)` - BEFORE coding!
+3. **Work**: Standard SCRUM workflow (intent → claim → edit → changelog → evidence)
+4. **Share**: `scrum_sprint_share(sprintId, agentId, shareType, title, content)`
+   - Types: decision, interface, discovery, integration, question, answer
+5. **Check**: `scrum_sprint_check(sprintId, agentId)` - Periodic sync
+6. **Leave**: `scrum_sprint_leave(sprintId, agentId)`
+
+### Key Rule
+**Always check `scrum_sprint_context()` before starting work** - this shows what teammates decided and built.</pre>
             </div>
           </div>
         </div>
@@ -529,11 +646,23 @@ scrum_evidence_attach()     # Attach proof of work
 scrum_changelog_log()       # Log a file change
 scrum_changelog_search()    # Search change history
 
+## Sprint Tools (Multi-Agent Collaboration)
+
+scrum_sprint_create()       # Create a sprint for a task
+scrum_sprint_join()         # Join a sprint as a sub-agent
+scrum_sprint_context()      # Get full sprint context (CALL BEFORE CODING!)
+scrum_sprint_share()        # Share decisions, interfaces, discoveries
+scrum_sprint_check()        # Periodic sync with teammates
+scrum_sprint_leave()        # Leave when done
+scrum_sprint_members()      # List sprint members
+scrum_sprint_shares()       # List shared context
+
 ## Workflow Enforcement
 
 - claim() fails without prior intent_post()
 - claim_release() fails without prior evidence_attach()
 - acceptanceCriteria is required (min 10 chars)
+- Sprint tools disabled if SCRUM_SPRINT_ENABLED=false
 - All operations are logged and auditable</pre>
             </div>
           </div>

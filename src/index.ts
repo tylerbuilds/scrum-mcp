@@ -5,6 +5,7 @@ import websocket from '@fastify/websocket';
 
 import { loadConfig } from './core/config.js';
 import { createLogger } from './core/logger.js';
+import { loadAuthFromEnv } from './core/auth.js';
 import { openDb } from './infra/db.js';
 import { ScrumState } from './core/state.js';
 import { registerRoutes } from './api/routes.js';
@@ -34,6 +35,9 @@ class EventRing {
 }
 
 async function main() {
+  // Load auth configuration from environment (opt-in)
+  loadAuthFromEnv();
+
   const cfg = loadConfig(process.env);
   const log = createLogger(cfg);
   const app = Fastify({
@@ -66,7 +70,7 @@ async function main() {
   const db = openDb(cfg);
   const state = new ScrumState(db, log);
 
-  await registerRoutes(app, state);
+  await registerRoutes(app, state, cfg);
 
   // Minimal event read API for debugging
   app.get('/api/events', async () => ({ ok: true, data: eventRing.toArray() }));
