@@ -253,8 +253,132 @@
 
     <section class="section" style="padding-top: 0;">
       <div class="container">
+        <!-- Auto-Setup Section -->
+        <div class="prompt-section" data-reveal style="margin-bottom: 48px;">
+          <span class="file-badge" style="background: linear-gradient(135deg, rgba(242, 193, 78, 0.2), rgba(10, 161, 167, 0.2)); color: var(--accent);">ONE-SHOT SETUP</span>
+          <h3>Auto-Setup with Claude Code</h3>
+          <p>
+            Copy this prompt and give it to Claude Code. It will automatically install SCRUM MCP,
+            configure it, test it, scan for your installed IDEs/CLIs, and add the prompts to each one
+            without destroying your existing configurations.
+          </p>
+          <div class="prompt-block">
+            <div class="prompt-label">
+              <span>Master setup prompt</span>
+              <button class="copy-btn" data-copy="setup-prompt">Copy</button>
+            </div>
+            <pre id="setup-prompt">Install and configure SCRUM MCP for multi-agent coordination across all my AI coding tools.
+
+## Step 1: Install SCRUM MCP
+
+1. Clone the repo to ~/.scrum-mcp (or use existing if present)
+2. Run npm install && npm run build
+3. Verify the build succeeded
+
+## Step 2: Configure MCP Server
+
+Add SCRUM MCP to my Claude Code MCP config (~/.claude/settings.json or similar):
+
+```json
+{
+  "mcpServers": {
+    "scrum": {
+      "command": "node",
+      "args": ["~/.scrum-mcp/dist/mcp.js"],
+      "env": {
+        "SCRUM_DB_PATH": "~/.scrum/scrum.sqlite"
+      }
+    }
+  }
+}
+```
+
+Expand ~ to my actual home directory. Merge with existing config, don't overwrite.
+
+## Step 3: Test Installation
+
+After configuring, call scrum_status() to verify the server responds.
+If it fails, troubleshoot and fix before proceeding.
+
+## Step 4: Scan for Installed IDEs/CLIs
+
+Check for these tools and their config locations:
+
+| Tool | Config Location | Config Type |
+|------|-----------------|-------------|
+| Claude Code | ~/.claude/CLAUDE.md | Markdown |
+| Cursor | ~/.cursor/rules.md OR project .cursorrules | Markdown |
+| Continue | ~/.continue/config.json | JSON (systemMessage field) |
+| Gemini CLI | ~/.config/gemini-cli/config.json | JSON |
+| OpenCode | ~/.config/opencode/config.json | JSON |
+| Antigravity | ~/.antigravity/settings.json | JSON |
+| Codex | ~/.codex/instructions.md | Markdown |
+| Windsurf | ~/.windsurf/global_rules.md | Markdown |
+| Aider | ~/.aider/aider.conf.yml | YAML (system-prompt field) |
+
+For each tool found, note its config file path.
+
+## Step 5: Add SCRUM Prompts (PRESERVE EXISTING)
+
+For each found tool, add the SCRUM MCP section to its config:
+
+**CRITICAL: Do NOT overwrite or remove existing content.**
+- Read the existing file first
+- Find a suitable location (end of file, or after similar sections)
+- Insert the SCRUM section with clear delimiters
+- For JSON files, merge into the appropriate field
+
+### SCRUM Section to Add:
+
+```markdown
+---
+
+## SCRUM MCP - Multi-Agent Coordination (v0.5.2)
+
+**Use SCRUM MCP for any code changes.** Multiple agents may work on this codebase simultaneously.
+
+### Session Startup
+```
+scrum_context()  # Returns status, tasks, claims, board, profile suggestion
+```
+
+### Quick Workflow
+```
+scrum_start_work(taskId, agentId, files, acceptanceCriteria)  # Start
+scrum_changelog_log(agentId, filePath, changeType, summary)   # Log changes
+scrum_finish_work(taskId, agentId, command, output)           # Finish
+```
+
+### Agent Naming
+Use pattern: `{tool}-{role}-{shortId}` (e.g., `claude-worker-api-a1b2`)
+
+### Orchestration (Parallel Workers)
+```
+scrum_orchestrate_start(taskId, orchestratorId, goal, workers)  # Spawn workers
+scrum_worker_complete(sprintId, agentId, status, result)        # Signal done
+scrum_orchestrate_status(sprintId)                              # Monitor
+```
+
+### Rules
+- NEVER use `git commit --no-verify`
+- ALWAYS call scrum_compliance_check before commits
+```
+
+## Step 6: Report Results
+
+After completing, report:
+1. SCRUM MCP installation status (success/failed)
+2. MCP config location and status
+3. List of tools found and their config files
+4. Which configs were updated
+5. Any errors or tools that couldn't be configured
+
+Test scrum_status() one more time to confirm everything works.</pre>
+          </div>
+        </div>
+
         <div class="usage-note" data-reveal>
-          <h4>Where to add these prompts</h4>
+          <h4>Manual setup - Where to add these prompts</h4>
           <p>
             <strong>Claude Code:</strong> Add to <code>CLAUDE.md</code> in your project root or <code>~/.claude/CLAUDE.md</code> globally.<br>
             <strong>Cursor:</strong> Add to <code>.cursorrules</code> in your project root.<br>
