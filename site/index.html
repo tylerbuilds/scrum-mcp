@@ -145,119 +145,33 @@
       <div class="container">
         <div class="section-head" data-reveal>
           <p class="eyebrow eyebrow-new">New in v0.5.2</p>
-          <h2>Token-optimized + orchestration tools.</h2>
+          <h2>~50% fewer tokens per task.</h2>
           <p>
-            v0.5.2 adds convenience tools that combine common workflows into single calls,
-            plus orchestration tools for spawning and coordinating parallel workers.
-            Profile auto-detection suggests solo/team/full based on current state.
+            Convenience tools combine common workflows into single calls.
+            What used to take 10+ tool calls now takes 3.
           </p>
         </div>
-        <div class="feature-grid feature-grid-new">
-          <article class="card card-new" data-reveal>
-            <h3>~50% Token Savings</h3>
-            <p>
-              Convenience tools combine 4+ calls into 1. Session startup: 450 tokens saved.
-              Per-task workflow: 300 tokens saved.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>scrum_context()</h3>
-            <p>
-              Session startup in ONE call. Returns status, tasks, claims, and board.
-              Replaces 4 separate tool calls.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>scrum_start_work()</h3>
-            <p>
-              Begin work in ONE call. Does overlap_check → intent_post → claim.
-              Replaces 3 separate tool calls.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>scrum_finish_work()</h3>
-            <p>
-              Complete work in ONE call. Does evidence_attach → compliance_check → release.
-              Replaces 3 separate tool calls.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Pre-Commit Hooks</h3>
-            <p>
-              Git hooks validate SCRUM compliance before every commit.
-              Blocks undeclared files and boundary violations.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Profile Auto-Detection</h3>
-            <p>
-              scrum_context() auto-suggests the right profile based on sprints and claims.
-              Solo: 16 tools. Team: 25. Full: all 38.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Unified Blocker</h3>
-            <p>
-              scrum_blocker(action: "add|resolve|list") replaces 3 separate tools.
-              One tool, clear actions.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Unified Dependency</h3>
-            <p>
-              scrum_dependency(action: "add|remove|get|check") replaces 4 tools.
-              Includes task readiness check.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Unified Metrics</h3>
-            <p>
-              scrum_metrics(type: "board|velocity|aging|task") replaces 4 tools.
-              All metrics in one place.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>REST-Only Admin</h3>
-            <p>
-              WIP limits, gates, templates, webhooks, agent registry moved to REST API.
-              Cleaner MCP surface for agents.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Sprint Collaboration</h3>
-            <p>
-              Create sprints where multiple agents coordinate on the same task.
-              Share decisions, interfaces, Q&A.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Orchestration Tools</h3>
-            <p>
-              scrum_orchestrate_start() spawns parallel workers with auto-generated IDs.
-              Workers call scrum_worker_complete() when done.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Compliance Check</h3>
-            <p>
-              Verify agents did what they declared. Block releases on undeclared
-              files or boundary violations.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Kanban + Metrics</h3>
-            <p>
-              Full board with dependencies, WIP limits, blockers.
-              Track cycle time, velocity, aging WIP.
-            </p>
-          </article>
-          <article class="card card-new" data-reveal>
-            <h3>Schema Validation</h3>
-            <p>
-              Defensive constraints on all fields. TaskIdField, AgentIdField
-              ensure proper input validation.
-            </p>
-          </article>
+        <div class="convenience-grid" data-reveal>
+          <div class="convenience-card">
+            <code>scrum_context()</code>
+            <span>Session startup in ONE call. Returns status, tasks, claims, board.</span>
+          </div>
+          <div class="convenience-card">
+            <code>scrum_start_work()</code>
+            <span>Begin work in ONE call. Does overlap → intent → claim.</span>
+          </div>
+          <div class="convenience-card">
+            <code>scrum_finish_work()</code>
+            <span>Complete work in ONE call. Does evidence → compliance → release.</span>
+          </div>
+        </div>
+        <div class="also-new" data-reveal>
+          <p>
+            <strong>Also new:</strong>
+            Pre-commit hooks · Profile auto-detection (solo/team/full) ·
+            Orchestration tools · Sprint collaboration · Unified blocker/dependency/metrics tools ·
+            Compliance verification
+          </p>
         </div>
       </div>
     </section>
