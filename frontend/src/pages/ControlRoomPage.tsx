@@ -8,16 +8,18 @@ import { ComplianceSummary } from '../components/dashboard/ComplianceSummary';
 import { TaskQueue } from '../components/dashboard/TaskQueue';
 import { TaskDetailModal } from '../components/dashboard/TaskDetailModal';
 import { PulseIndicator } from '../components/dashboard/AnimatedCard';
+import { CommandPalette, useCommandPalette } from '../components/dashboard/CommandPalette';
 import { LobbyFeed } from '../components/lobby/LobbyFeed';
 import { SearchBar } from '../components/dashboard/SearchBar';
 import { SearchResults } from '../components/dashboard/SearchResults';
-import { Activity, Radar, Radio, Shield } from 'lucide-react';
+import { Activity, Radar, Radio, Shield, Command } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export function ControlRoomPage() {
   const { connect, disconnect, isConnected, agents, tasks, claims } = useScrumStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const commandPalette = useCommandPalette();
 
   useEffect(() => {
     connect();
@@ -113,7 +115,17 @@ export function ControlRoomPage() {
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <SearchBar onSearchChange={setSearchQuery} />
+              <div className="flex items-center gap-2 flex-1">
+                <SearchBar onSearchChange={setSearchQuery} />
+                <button
+                  onClick={commandPalette.open}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-900/70 border border-stone-800 hover:border-amber-500/50 hover:bg-stone-800 transition-colors text-stone-400 hover:text-stone-200"
+                  title="Command Palette (⌘K)"
+                >
+                  <Command className="w-4 h-4" />
+                  <kbd className="text-[10px] font-mono bg-stone-800 px-1.5 py-0.5 rounded">⌘K</kbd>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-stone-900/70 border border-stone-800 whitespace-nowrap">
                 <PulseIndicator color={isConnected ? 'emerald' : 'red'} />
@@ -179,6 +191,9 @@ export function ControlRoomPage() {
 
         {/* Task Detail Modal */}
         <TaskDetailModal taskId={selectedTaskId} onClose={() => setSelectedTaskId(null)} />
+
+        {/* Command Palette */}
+        <CommandPalette isOpen={commandPalette.isOpen} onClose={commandPalette.close} />
       </div>
     </motion.div>
   );

@@ -1,0 +1,33 @@
+## Codebase Patterns
+- Frontend uses React 18 + Vite 6 + Tailwind CSS
+- State management: Zustand with WebSocket integration
+- Color theme: Stone (grays) + Amber (primary accent) + Lime (success)
+- Typography: Space Grotesk (headings) + IBM Plex Mono (code)
+- Animations: Framer Motion for all transitions
+- API: Vite proxy to backend at localhost:4177
+- Components export from index.ts barrel files
+
+---
+
+## Project Setup Notes
+- Run frontend: `cd frontend && pnpm dev` (port 5174)
+- Run backend: Check root package.json scripts
+- Build: `cd frontend && pnpm build`
+- Current visual grade: 7.5/10 (target: 9+/10)
+
+---
+
+## Initial Analysis - 2026-01-16
+
+Security Review: PASSED (Low Risk)
+- No XSS vulnerabilities (React escaping)
+- No dependency vulnerabilities (pnpm audit clean)
+- No exposed secrets
+- Recommendation: Add CSP headers for production
+
+UI/UX Analysis:
+- Strengths: Cohesive dark theme, kinetic animations, real-time indicators
+- Weaknesses: Missing LobbyFeed, Button color mismatch, no Cmd+K, basic search
+- Target: Match Linear/Vercel dashboard quality
+
+---

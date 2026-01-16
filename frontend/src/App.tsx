@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { Toaster } from 'sonner';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { ControlRoomPage } from './pages/ControlRoomPage';
 import { BoardPage } from './pages/BoardPage';
 import { TaskPage } from './pages/TaskPage';
@@ -52,7 +54,21 @@ export function App() {
 
   return (
     <div className="min-h-screen bg-[#0b0a08] text-stone-100">
-      {renderPage()}
+      <Toaster
+        position="bottom-right"
+        theme="dark"
+        toastOptions={{
+          style: {
+            background: '#1c1917',
+            border: '1px solid #292524',
+            color: '#e7e5e4',
+          },
+          className: 'font-sans',
+        }}
+      />
+      <ErrorBoundary>
+        {renderPage()}
+      </ErrorBoundary>
     </div>
   );
 }
