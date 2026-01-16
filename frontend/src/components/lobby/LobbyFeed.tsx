@@ -346,8 +346,9 @@ export function LobbyFeed() {
               layout
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.005 }}
               transition={{ duration: 0.3, delay: index * 0.04 }}
-              className={`relative overflow-hidden rounded-xl border ${accent.border} bg-stone-950/70`}
+              className={`relative overflow-hidden rounded-xl border ${accent.border} bg-stone-950/70 hover:shadow-lg hover:shadow-black/20`}
             >
               <div className={`absolute inset-0 bg-gradient-to-r ${accent.glow}`} />
               <div className="relative p-4 space-y-4">
@@ -409,7 +410,9 @@ export function LobbyFeed() {
                       <motion.div
                         key={`${item.type}-${item.ts}-${meta.summary}`}
                         layout
-                        className="flex items-start gap-3 rounded-lg border border-stone-800/80 bg-stone-950/40 px-3 py-2"
+                        whileHover={{ x: 4, backgroundColor: 'rgba(68, 64, 60, 0.15)' }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-start gap-3 rounded-lg border border-stone-800/80 bg-stone-950/40 px-3 py-2 cursor-default"
                       >
                         <div className={`mt-1 h-2 w-2 rounded-full ${meta.dot}`} />
                         <div className="flex-1 min-w-0">

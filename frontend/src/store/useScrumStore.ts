@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast } from 'sonner';
 import { Task, Agent, Claim, BoardMetrics, ScrumEvent } from '../types/scrum';
 
 interface ScrumState {
@@ -49,6 +50,9 @@ export const useScrumStore = create<ScrumState>((set, get) => {
         });
       } catch (err) {
         console.error('Failed to fetch initial state:', err);
+        toast.error('Failed to connect to SCRUM server', {
+          description: 'Check if the backend is running on port 4177',
+        });
       }
     },
 
@@ -68,12 +72,20 @@ export const useScrumStore = create<ScrumState>((set, get) => {
         socket.onopen = () => {
           console.log('Connected to ScrumMCP WebSocket');
           set({ isConnected: true });
+          toast.success('Connected to SCRUM server', {
+            description: 'Real-time updates enabled',
+            duration: 2000,
+          });
         };
 
         socket.onclose = () => {
           console.log('Disconnected from ScrumMCP WebSocket');
           set({ isConnected: false });
           socket = null;
+          toast.warning('Disconnected from server', {
+            description: 'Attempting to reconnect...',
+            duration: 3000,
+          });
           // Reconnect logic
           clearTimeout(reconnectTimer);
           reconnectTimer = setTimeout(() => get().connect(), 3000);
@@ -82,6 +94,9 @@ export const useScrumStore = create<ScrumState>((set, get) => {
         socket.onerror = (err) => {
           console.error('WebSocket error:', err);
           set({ isConnected: false });
+          toast.error('Connection error', {
+            description: 'Unable to maintain real-time connection',
+          });
         };
 
         socket.onmessage = (event) => {
@@ -95,6 +110,9 @@ export const useScrumStore = create<ScrumState>((set, get) => {
       } catch (err) {
         console.error('Failed to create WebSocket:', err);
         set({ isConnected: false });
+        toast.error('Failed to initialize connection', {
+          description: 'Please refresh the page to try again',
+        });
       }
     },
 
