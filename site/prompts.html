@@ -253,109 +253,118 @@
 
     <section class="section" style="padding-top: 0;">
       <div class="container">
-        <!-- Auto-Setup Section -->
+        <!-- Auto-Setup Section with Tool Selector -->
         <div class="prompt-section" data-reveal style="margin-bottom: 48px;">
           <span class="file-badge" style="background: linear-gradient(135deg, rgba(242, 193, 78, 0.2), rgba(10, 161, 167, 0.2)); color: var(--accent);">ONE-SHOT SETUP</span>
-          <h3>Auto-Setup with Claude Code</h3>
+          <h3>Auto-Setup Prompt</h3>
           <p>
-            Copy this prompt and give it to Claude Code. It will automatically install SCRUM MCP,
-            configure it, test it, scan for your installed IDEs/CLIs, and add the prompts to each one
-            without destroying your existing configurations.
+            Select your AI coding tool below. Copy the prompt and paste it into your tool.
+            It will automatically install SCRUM MCP, configure everything, and test it works.
           </p>
-          <div class="prompt-block">
-            <div class="prompt-label">
-              <span>Master setup prompt</span>
-              <button class="copy-btn" data-copy="setup-prompt">Copy</button>
-            </div>
-            <pre id="setup-prompt">Install and configure SCRUM MCP for multi-agent coordination across all my AI coding tools.
+
+          <div class="tool-selector" style="margin: 24px 0;">
+            <label for="tool-select" style="font-weight: 600; margin-right: 12px;">Which tool are you using?</label>
+            <select id="tool-select" style="padding: 12px 20px; border-radius: 999px; border: 1px solid rgba(20,22,27,0.15); font-size: 14px; font-weight: 500; background: #fff; cursor: pointer; min-width: 200px;">
+              <option value="claude-code">Claude Code (CLI)</option>
+              <option value="cursor">Cursor</option>
+              <option value="windsurf">Windsurf</option>
+              <option value="gemini-cli">Gemini CLI / Antigravity</option>
+              <option value="continue">Continue</option>
+              <option value="aider">Aider</option>
+            </select>
+          </div>
+
+          <!-- Claude Code Prompt -->
+          <div id="prompt-claude-code" class="tool-prompt active">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Claude Code setup prompt</span>
+                <button class="copy-btn" data-copy="setup-claude-code">Copy</button>
+              </div>
+              <pre id="setup-claude-code">Install and configure SCRUM MCP for multi-agent coordination.
 
 ## Prerequisites Check
 
-First verify these are installed:
-- Node.js 20+ (run: node --version)
-- npm (run: npm --version)
-- git (run: git --version)
+First verify these are installed (run each command):
+- node --version (need Node.js 20+)
+- npm --version
+- git --version
 
-If any are missing, stop and tell me what to install.
+If any command fails or shows old version, stop and tell me what to install.
 
 ## Step 1: Install SCRUM MCP
 
-git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp
-cd ~/.scrum-mcp
-npm install
-npm run build
+Check if ~/.scrum-mcp exists:
+- If YES: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If NO: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
 
-If ~/.scrum-mcp already exists, do: cd ~/.scrum-mcp && git pull && npm install && npm run build
+Verify: ls ~/.scrum-mcp/dist/mcp.js (should exist)
 
-Verify build succeeded (dist/mcp.js should exist).
+Create data directory: mkdir -p ~/.scrum
 
 ## Step 2: Configure MCP Server
 
-Find my Claude Code MCP config. Check these locations in order:
-1. ~/.claude.json (newer versions)
-2. ~/.config/claude-code/settings.json
-3. Look for existing mcpServers config
+Get my home directory: echo $HOME (remember this path)
 
-**IMPORTANT**: Use ABSOLUTE paths, not ~. Get my home directory first: echo $HOME
+Check if I already have MCP servers configured:
+- Look for ~/.claude.json or ~/.config/claude-code/settings.json
+- Check if file exists and has "mcpServers" key
 
-Add this to the mcpServers object (merge, don't replace):
+### If this is my FIRST MCP server (no config file or no mcpServers):
 
-"scrum": {
-  "command": "node",
-  "args": ["/ABSOLUTE/PATH/TO/.scrum-mcp/dist/mcp.js"],
-  "env": {
-    "SCRUM_DB_PATH": "/ABSOLUTE/PATH/TO/.scrum/scrum.sqlite"
+Create ~/.claude.json with this content (replace YOUR_HOME with actual home path like /home/user or /Users/user):
+
+{
+  "mcpServers": {
+    "scrum": {
+      "command": "node",
+      "args": ["YOUR_HOME/.scrum-mcp/dist/mcp.js"],
+      "env": {
+        "SCRUM_DB_PATH": "YOUR_HOME/.scrum/scrum.sqlite"
+      }
+    }
   }
 }
 
-Replace /ABSOLUTE/PATH/TO with my actual home directory (e.g., /home/username or /Users/username).
+### If I already have MCP servers configured:
 
-Create ~/.scrum directory if it doesn't exist: mkdir -p ~/.scrum
+Read the existing config file, add "scrum" to the mcpServers object (don't remove existing servers), write back.
+
+**CRITICAL**: All paths must be ABSOLUTE (start with /). Never use ~ in JSON.
 
 ## Step 3: Restart Required
 
-Tell me: "MCP config updated. Please restart Claude Code for the SCRUM MCP server to load, then say 'continue' to proceed."
+Tell me exactly this:
 
-WAIT for my response before continuing.
+"SCRUM MCP installed and configured. Please restart Claude Code now:
+1. Press Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux)
+2. Type 'Developer: Reload Window' and press Enter
+3. After reload, say 'continue' to test"
+
+WAIT for my response. Do not proceed until I say continue.
 
 ## Step 4: Test Installation
 
-After I confirm restart, call scrum_status() to verify it works.
+After I confirm, call: scrum_status()
 
-If it fails:
-- Check the MCP config paths are absolute (no ~)
-- Check dist/mcp.js exists
-- Check node is in PATH
-- Report the specific error
+If it works, you'll see version and stats. Success!
 
-## Step 5: Scan for Installed IDEs/CLIs
+If it fails with "Unknown tool":
+- The MCP server didn't load. Check:
+  1. Paths in config are absolute (no ~)
+  2. File exists: ls ~/.scrum-mcp/dist/mcp.js
+  3. Config file is valid JSON
+  4. Try restart again
 
-Check if these config FILES exist (not just directories):
+## Step 5: Add System Prompt
 
-| Tool | Global Config | Check Command |
-|------|---------------|---------------|
-| Claude Code | ~/.claude/CLAUDE.md | ls ~/.claude/CLAUDE.md |
-| Cursor | ~/.cursor/rules/rules.md | ls ~/.cursor/rules/rules.md |
-| Windsurf | ~/.codeium/windsurf/memories/global_rules.md | ls that path |
-| Continue | ~/.continue/config.json | ls ~/.continue/config.json |
-| Aider | ~/.aider.conf.yml | ls ~/.aider.conf.yml |
+Check if ~/.claude/CLAUDE.md exists.
 
-For Cursor/Windsurf, also note they use per-project .cursorrules/.windsurfrules files.
+If NO: Create ~/.claude directory (mkdir -p ~/.claude) and create CLAUDE.md
 
-Report which configs exist. Skip tools whose configs don't exist (don't create new ones).
+If YES: Read existing content first
 
-## Step 6: Add SCRUM Prompts (PRESERVE EXISTING)
-
-For each EXISTING config file found:
-
-1. **Back it up first**: cp {file} {file}.backup
-2. Read the current contents
-3. Check if "SCRUM MCP" section already exists - if so, skip (already configured)
-4. Append the SCRUM section at the END of the file
-
-### For Markdown files (CLAUDE.md, rules.md, etc.):
-
-Append this exact text:
+Either way, APPEND this to the end of ~/.claude/CLAUDE.md (don't overwrite existing content):
 
 ---
 
@@ -363,40 +372,442 @@ Append this exact text:
 
 Use SCRUM MCP for any code changes. Multiple agents may work simultaneously.
 
-Session Startup: scrum_context()
-Start Work: scrum_start_work(taskId, agentId, files, acceptanceCriteria)
-Log Changes: scrum_changelog_log(agentId, filePath, changeType, summary)
-Finish Work: scrum_finish_work(taskId, agentId, command, output)
+### Quick Workflow
+scrum_context()                                                    # Session start
+scrum_start_work(taskId, agentId, files, acceptanceCriteria)       # Begin work
+scrum_changelog_log(agentId, filePath, changeType, summary)        # Log changes
+scrum_finish_work(taskId, agentId, command, output)                # Complete
 
-Agent Naming: {tool}-{role}-{shortId} (e.g., claude-worker-api-a1b2)
+### Agent Naming
+Pattern: claude-{role}-{id} (e.g., claude-worker-api-a1b2, claude-orchestrator-main)
 
-Orchestration:
-- scrum_orchestrate_start(taskId, orchestratorId, goal, workers)
-- scrum_worker_complete(sprintId, agentId, status, result)
-- scrum_orchestrate_status(sprintId)
+### Rules
+- NEVER use git commit --no-verify
+- ALWAYS call scrum_compliance_check before commits
 
-Rules: NEVER use git commit --no-verify. ALWAYS run scrum_compliance_check before commits.
-
-### For Continue (config.json):
-
-Find or create the "systemMessage" field and append the SCRUM text to its value.
-
-### For Aider (.aider.conf.yml):
-
-Add under a system-prompt key if it exists, or create one.
-
-## Step 7: Report Results
+## Step 6: Final Report
 
 Report:
-1. Prerequisites: all met / what's missing
-2. SCRUM MCP: installed at {path} / build status
-3. MCP Config: updated at {path}
-4. Tools found: list each with config path
-5. Configs updated: list each (or "skipped - already has SCRUM" / "skipped - no config file")
-6. Backups created: list .backup files
-7. Final test: scrum_status() result
+1. Node.js version: {version}
+2. SCRUM MCP installed: ~/.scrum-mcp (build: success/failed)
+3. MCP config: {path} (first-time setup / added to existing)
+4. System prompt: ~/.claude/CLAUDE.md (created / updated / already had SCRUM)
+5. Test result: scrum_status() output
 
-If anything failed, explain what went wrong and how to fix it manually.</pre>
+If everything passed, say "SCRUM MCP is ready! Try: scrum_context()"</pre>
+            </div>
+          </div>
+
+          <!-- Cursor Prompt -->
+          <div id="prompt-cursor" class="tool-prompt" style="display: none;">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Cursor setup prompt</span>
+                <button class="copy-btn" data-copy="setup-cursor">Copy</button>
+              </div>
+              <pre id="setup-cursor">Set up SCRUM MCP for multi-agent coordination in Cursor.
+
+NOTE: Cursor doesn't support MCP servers directly. SCRUM MCP runs as a REST API that you'll start separately.
+
+## Step 1: Install SCRUM MCP
+
+Check if ~/.scrum-mcp exists:
+- If YES: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If NO: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Verify: ls ~/.scrum-mcp/dist/index.js (should exist)
+
+Create data directory: mkdir -p ~/.scrum
+
+## Step 2: Create Start Script
+
+Create a script to start the SCRUM server. Create file ~/.scrum-mcp/start.sh:
+
+#!/bin/bash
+cd ~/.scrum-mcp
+SCRUM_DB_PATH=~/.scrum/scrum.sqlite node dist/index.js
+
+Make it executable: chmod +x ~/.scrum-mcp/start.sh
+
+## Step 3: Test the Server
+
+Start the server in a terminal: ~/.scrum-mcp/start.sh
+
+It should show "SCRUM server running on port 4177"
+
+Test it works: curl http://localhost:4177/api/status
+
+You'll need to keep this running while using Cursor with SCRUM.
+
+## Step 4: Add Cursor Rules
+
+Cursor uses .cursorrules files for project-specific rules.
+
+For GLOBAL rules, check if ~/.cursor/rules exists:
+- If directory exists, create/edit rules.md inside it
+- If not, we'll use per-project .cursorrules
+
+Create or append to the rules file:
+
+---
+
+## SCRUM MCP - Multi-Agent Coordination (v0.5.2)
+
+SCRUM server runs at http://localhost:4177. Start it with: ~/.scrum-mcp/start.sh
+
+### Before Any Code Changes
+
+1. Check for conflicts:
+   curl http://localhost:4177/api/claims
+
+2. Create task:
+   curl -X POST http://localhost:4177/api/tasks -H "Content-Type: application/json" -d '{"title":"Your task","description":"Details"}'
+
+3. Post intent (REQUIRED):
+   curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-{your-id}","files":["file.ts"],"acceptanceCriteria":"Tests pass"}'
+
+4. Claim files:
+   curl -X POST http://localhost:4177/api/claims -H "Content-Type: application/json" -d '{"agentId":"cursor-{your-id}","files":["file.ts"]}'
+
+### After Changes
+
+5. Log changes:
+   curl -X POST http://localhost:4177/api/changelog -H "Content-Type: application/json" -d '{"agentId":"cursor-{your-id}","filePath":"file.ts","changeType":"modify","summary":"What changed"}'
+
+6. Attach evidence:
+   curl -X POST http://localhost:4177/api/evidence -H "Content-Type: application/json" -d '{"taskId":"task-id","agentId":"cursor-{your-id}","command":"npm test","output":"All tests passed"}'
+
+7. Release claims:
+   curl -X DELETE "http://localhost:4177/api/claims/cursor-{your-id}"
+
+### Agent Naming
+Pattern: cursor-{role}-{id} (e.g., cursor-main-a1b2)
+
+### Rules
+- NEVER use git commit --no-verify
+- ALWAYS check compliance before commits
+
+## Step 5: Report
+
+Report:
+1. SCRUM MCP installed: ~/.scrum-mcp
+2. Start script: ~/.scrum-mcp/start.sh (created/exists)
+3. Server test: curl result
+4. Rules file: location (created/updated)
+
+Tell me: "SCRUM MCP installed. Run ~/.scrum-mcp/start.sh before coding, then use the curl commands above."</pre>
+            </div>
+          </div>
+
+          <!-- Windsurf Prompt -->
+          <div id="prompt-windsurf" class="tool-prompt" style="display: none;">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Windsurf setup prompt</span>
+                <button class="copy-btn" data-copy="setup-windsurf">Copy</button>
+              </div>
+              <pre id="setup-windsurf">Set up SCRUM MCP for multi-agent coordination in Windsurf.
+
+NOTE: Windsurf (like Cursor) doesn't support MCP servers directly. SCRUM MCP runs as a REST API.
+
+## Step 1: Install SCRUM MCP
+
+Check if ~/.scrum-mcp exists:
+- If YES: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If NO: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Create data directory: mkdir -p ~/.scrum
+
+## Step 2: Create Start Script
+
+Create ~/.scrum-mcp/start.sh:
+
+#!/bin/bash
+cd ~/.scrum-mcp
+SCRUM_DB_PATH=~/.scrum/scrum.sqlite node dist/index.js
+
+Make executable: chmod +x ~/.scrum-mcp/start.sh
+
+## Step 3: Test Server
+
+Run: ~/.scrum-mcp/start.sh
+Test: curl http://localhost:4177/api/status
+
+## Step 4: Add Windsurf Rules
+
+Windsurf uses .windsurfrules for project rules and has global rules at:
+~/.codeium/windsurf/memories/global_rules.md
+
+Check if that path exists. If yes, append to it. If no, create the directories and file.
+
+Append this content:
+
+---
+
+## SCRUM MCP - Multi-Agent Coordination (v0.5.2)
+
+SCRUM server: http://localhost:4177 (start with ~/.scrum-mcp/start.sh)
+
+### Workflow via REST API
+
+Check claims: curl http://localhost:4177/api/claims
+Create task: curl -X POST http://localhost:4177/api/tasks -H "Content-Type: application/json" -d '{"title":"Task","description":"..."}'
+Post intent: curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"...","agentId":"windsurf-main","files":[...],"acceptanceCriteria":"..."}'
+Claim files: curl -X POST http://localhost:4177/api/claims -H "Content-Type: application/json" -d '{"agentId":"windsurf-main","files":[...]}'
+Release: curl -X DELETE http://localhost:4177/api/claims/windsurf-main
+
+### Agent Naming
+Pattern: windsurf-{role}-{id}
+
+### Rules
+- NEVER use git commit --no-verify
+- Start SCRUM server before coding sessions
+
+## Step 5: Report
+
+1. SCRUM MCP: installed at ~/.scrum-mcp
+2. Start script: ~/.scrum-mcp/start.sh
+3. Global rules: path and status
+4. Server test: result
+
+Done message: "SCRUM ready. Run ~/.scrum-mcp/start.sh then code!"</pre>
+            </div>
+          </div>
+
+          <!-- Gemini CLI / Antigravity Prompt -->
+          <div id="prompt-gemini-cli" class="tool-prompt" style="display: none;">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Gemini CLI / Antigravity setup prompt</span>
+                <button class="copy-btn" data-copy="setup-gemini-cli">Copy</button>
+              </div>
+              <pre id="setup-gemini-cli">Set up SCRUM MCP for multi-agent coordination.
+
+## Step 1: Install SCRUM MCP
+
+Check prerequisites:
+- node --version (need 20+)
+- npm --version
+- git --version
+
+Install:
+- If ~/.scrum-mcp exists: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If not: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Create: mkdir -p ~/.scrum
+
+## Step 2: Configure MCP Server
+
+Gemini CLI and Antigravity support MCP via config files.
+
+Get home directory: echo $HOME (use this absolute path below)
+
+For Gemini CLI, check/create ~/.config/gemini-cli/config.json
+For Antigravity, check/create ~/.antigravity/mcp.json
+
+Add this MCP server config (replace YOUR_HOME with actual path like /home/user):
+
+{
+  "mcpServers": {
+    "scrum": {
+      "command": "node",
+      "args": ["YOUR_HOME/.scrum-mcp/dist/mcp.js"],
+      "env": {
+        "SCRUM_DB_PATH": "YOUR_HOME/.scrum/scrum.sqlite"
+      }
+    }
+  }
+}
+
+If the file already exists with other servers, merge this into the existing mcpServers object.
+
+## Step 3: Restart and Test
+
+Restart your CLI tool, then test with: scrum_status()
+
+If it fails, check:
+1. Paths are absolute (no ~)
+2. dist/mcp.js exists
+3. Config is valid JSON
+
+## Step 4: Add System Instructions
+
+Find where your tool stores system instructions/rules.
+
+For Gemini CLI: Usually in config.json under "systemInstruction"
+For Antigravity: Check ~/.antigravity/settings.json or similar
+
+Add this to the system instructions:
+
+---
+
+## SCRUM MCP - Multi-Agent Coordination (v0.5.2)
+
+Use SCRUM MCP for code changes. Multiple agents may work simultaneously.
+
+### Workflow
+scrum_context()                                              # Session start
+scrum_start_work(taskId, agentId, files, acceptanceCriteria) # Begin
+scrum_changelog_log(agentId, filePath, changeType, summary)  # Log
+scrum_finish_work(taskId, agentId, command, output)          # Complete
+
+### Agent Naming
+Pattern: gemini-{role}-{id} or antigravity-{role}-{id}
+
+### Rules
+- NEVER use git commit --no-verify
+- ALWAYS call scrum_compliance_check before commits
+
+## Step 5: Report
+
+1. Prerequisites: all met?
+2. SCRUM MCP: ~/.scrum-mcp (build status)
+3. MCP config: path and status
+4. System instructions: updated?
+5. Test: scrum_status() result
+
+Success: "SCRUM MCP ready! Test with scrum_context()"</pre>
+            </div>
+          </div>
+
+          <!-- Continue Prompt -->
+          <div id="prompt-continue" class="tool-prompt" style="display: none;">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Continue setup prompt</span>
+                <button class="copy-btn" data-copy="setup-continue">Copy</button>
+              </div>
+              <pre id="setup-continue">Set up SCRUM MCP for multi-agent coordination in Continue.
+
+## Step 1: Install SCRUM MCP
+
+Prerequisites: node --version (20+), npm, git
+
+Install:
+- If ~/.scrum-mcp exists: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If not: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Create: mkdir -p ~/.scrum
+
+## Step 2: Configure MCP in Continue
+
+Continue's config is at ~/.continue/config.json
+
+Get absolute home path: echo $HOME
+
+Read existing config (or start fresh if none exists).
+
+Add to the "experimental" > "modelContextProtocolServers" array (create if needed):
+
+{
+  "experimental": {
+    "modelContextProtocolServers": [
+      {
+        "transport": {
+          "type": "stdio",
+          "command": "node",
+          "args": ["YOUR_HOME/.scrum-mcp/dist/mcp.js"],
+          "env": {
+            "SCRUM_DB_PATH": "YOUR_HOME/.scrum/scrum.sqlite"
+          }
+        }
+      }
+    ]
+  }
+}
+
+Replace YOUR_HOME with absolute path. Merge with existing config.
+
+## Step 3: Add System Message
+
+In the same config.json, find or create "systemMessage" field and append:
+
+"Use SCRUM MCP for code changes. Workflow: scrum_context() at start, scrum_start_work() before changes, scrum_changelog_log() after edits, scrum_finish_work() when done. Agent naming: continue-{role}-{id}. Never use git commit --no-verify."
+
+## Step 4: Restart and Test
+
+Restart Continue (or VS Code), then test: scrum_status()
+
+## Step 5: Report
+
+1. SCRUM MCP: ~/.scrum-mcp (build status)
+2. Continue config: ~/.continue/config.json (updated)
+3. MCP server: added to modelContextProtocolServers
+4. System message: updated
+5. Test: scrum_status() result
+
+Success: "SCRUM MCP configured in Continue!"</pre>
+            </div>
+          </div>
+
+          <!-- Aider Prompt -->
+          <div id="prompt-aider" class="tool-prompt" style="display: none;">
+            <div class="prompt-block">
+              <div class="prompt-label">
+                <span>Aider setup prompt</span>
+                <button class="copy-btn" data-copy="setup-aider">Copy</button>
+              </div>
+              <pre id="setup-aider">Set up SCRUM MCP for multi-agent coordination with Aider.
+
+NOTE: Aider doesn't support MCP directly. SCRUM runs as a REST API you'll interact with via shell commands.
+
+## Step 1: Install SCRUM MCP
+
+Prerequisites: node 20+, npm, git
+
+Install:
+- If ~/.scrum-mcp exists: cd ~/.scrum-mcp && git pull && npm install && npm run build
+- If not: git clone https://github.com/tylerbuilds/scrum-mcp.git ~/.scrum-mcp && cd ~/.scrum-mcp && npm install && npm run build
+
+Create: mkdir -p ~/.scrum
+
+## Step 2: Create Start Script
+
+Create ~/.scrum-mcp/start.sh:
+
+#!/bin/bash
+cd ~/.scrum-mcp
+SCRUM_DB_PATH=~/.scrum/scrum.sqlite node dist/index.js
+
+chmod +x ~/.scrum-mcp/start.sh
+
+## Step 3: Test Server
+
+Run: ~/.scrum-mcp/start.sh &
+Test: curl http://localhost:4177/api/status
+
+## Step 4: Configure Aider
+
+Aider uses ~/.aider.conf.yml for global config.
+
+Create or edit that file, add:
+
+system-prompt: |
+  ## SCRUM MCP Coordination
+
+  SCRUM server runs at http://localhost:4177. Use curl commands:
+
+  Before changes:
+  - Check claims: curl http://localhost:4177/api/claims
+  - Post intent: curl -X POST http://localhost:4177/api/intents -H "Content-Type: application/json" -d '{"taskId":"...","agentId":"aider-main","files":[...],"acceptanceCriteria":"..."}'
+  - Claim files: curl -X POST http://localhost:4177/api/claims -d '{"agentId":"aider-main","files":[...]}'
+
+  After changes:
+  - Log: curl -X POST http://localhost:4177/api/changelog -d '{"agentId":"aider-main","filePath":"...","changeType":"modify","summary":"..."}'
+  - Release: curl -X DELETE http://localhost:4177/api/claims/aider-main
+
+  Agent naming: aider-{role}-{id}
+  Never use git commit --no-verify.
+
+## Step 5: Report
+
+1. SCRUM MCP: ~/.scrum-mcp
+2. Start script: created
+3. Server test: result
+4. Aider config: ~/.aider.conf.yml updated
+
+Done: "Start SCRUM server with ~/.scrum-mcp/start.sh before running Aider"</pre>
+            </div>
           </div>
         </div>
 
@@ -1239,6 +1650,25 @@ scrum_orchestrate_status()  # Get orchestration progress
         }
       });
     });
+
+    // Tool selector for auto-setup prompts
+    const toolSelect = document.getElementById('tool-select');
+    if (toolSelect) {
+      toolSelect.addEventListener('change', () => {
+        const selectedTool = toolSelect.value;
+        // Hide all tool prompts
+        document.querySelectorAll('.tool-prompt').forEach(prompt => {
+          prompt.style.display = 'none';
+          prompt.classList.remove('active');
+        });
+        // Show selected tool prompt
+        const selectedPrompt = document.getElementById('prompt-' + selectedTool);
+        if (selectedPrompt) {
+          selectedPrompt.style.display = 'block';
+          selectedPrompt.classList.add('active');
+        }
+      });
+    }
   </script>
 </body>
 
