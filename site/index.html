@@ -80,8 +80,8 @@
             evidence, and stream realtime signals without phoning home.
           </p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.1.zip">
-              Download v0.5.1
+            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
+              Download v0.5.2
             </a>
             <a class="btn btn-ghost" href="#start">
               Get started
@@ -144,27 +144,55 @@
     <section class="section section-new">
       <div class="container">
         <div class="section-head" data-reveal>
-          <p class="eyebrow eyebrow-new">New in v0.5.1</p>
-          <h2>Smart tool consolidation for better usability.</h2>
+          <p class="eyebrow eyebrow-new">New in v0.5.2</p>
+          <h2>Token-optimized tools save ~50% overhead.</h2>
           <p>
-            v0.5.1 reduces MCP tools from 56 to 32 through smart consolidation. Action-based tools (blocker, dependency) and
-            type-based tools (metrics) reduce cognitive load. Profile-based discovery shows only what you need.
-            Admin tools moved to REST-only for cleaner agent experience.
+            v0.5.2 adds convenience tools that combine common workflows into single calls.
+            scrum_context(), scrum_start_work(), scrum_finish_work() reduce token usage
+            from ~1,500 to ~700 tokens per task. Plus trimmed descriptions and pre-commit hooks.
           </p>
         </div>
         <div class="feature-grid feature-grid-new">
           <article class="card card-new" data-reveal>
-            <h3>56 → 32 Tools</h3>
+            <h3>~50% Token Savings</h3>
             <p>
-              Smart consolidation reduces cognitive load by 43%. Action-based and
-              type-based patterns replace redundant individual tools.
+              Convenience tools combine 4+ calls into 1. Session startup: 450 tokens saved.
+              Per-task workflow: 300 tokens saved.
+            </p>
+          </article>
+          <article class="card card-new" data-reveal>
+            <h3>scrum_context()</h3>
+            <p>
+              Session startup in ONE call. Returns status, tasks, claims, and board.
+              Replaces 4 separate tool calls.
+            </p>
+          </article>
+          <article class="card card-new" data-reveal>
+            <h3>scrum_start_work()</h3>
+            <p>
+              Begin work in ONE call. Does overlap_check → intent_post → claim.
+              Replaces 3 separate tool calls.
+            </p>
+          </article>
+          <article class="card card-new" data-reveal>
+            <h3>scrum_finish_work()</h3>
+            <p>
+              Complete work in ONE call. Does evidence_attach → compliance_check → release.
+              Replaces 3 separate tool calls.
+            </p>
+          </article>
+          <article class="card card-new" data-reveal>
+            <h3>Pre-Commit Hooks</h3>
+            <p>
+              Git hooks validate SCRUM compliance before every commit.
+              Blocks undeclared files and boundary violations.
             </p>
           </article>
           <article class="card card-new" data-reveal>
             <h3>Profile Discovery</h3>
             <p>
               scrum_status(profile: "solo|team|full") shows only relevant tools.
-              Solo: 13 core. Team: 22. Full: all 32.
+              Solo: 15 core. Team: 24. Full: all 35.
             </p>
           </article>
           <article class="card card-new" data-reveal>
@@ -240,8 +268,8 @@
             <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
               Clone the repo
             </a>
-            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.1.zip">
-              Download ZIP v0.5.1
+            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
+              Download ZIP v0.5.2
             </a>
           </div>
           <div class="start-notes">
@@ -361,8 +389,8 @@ npm run cli -- task create --title "First task"</code></pre>
             Continue, and any MCP client can share intent and receipts instantly.
           </p>
           <ul class="list">
-            <li>32 MCP tools: consolidated for usability (down from 56)</li>
-            <li>Profile discovery: solo (13), team (22), full (32) tools</li>
+            <li>35 MCP tools: consolidated + token-optimized convenience tools</li>
+            <li>Profile discovery: solo (15), team (24), full (35) tools</li>
             <li>Sprint collaboration, compliance verification, Kanban, metrics</li>
           </ul>
           <div class="mini-cta">
@@ -521,8 +549,8 @@ git commit -m "Add feature"
           </p>
         </div>
         <div class="cta-actions">
-          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.1.zip">
-            Download v0.5.1
+          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
+            Download v0.5.2
           </a>
           <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
             GitHub repo

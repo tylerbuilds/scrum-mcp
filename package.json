@@ -1,6 +1,6 @@
 {
   "name": "scrum",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "private": true,
   "description": "SCRUM (Synchronized Claims Registry for Unified Multi-agents) - a local-first coordination layer for multi-agent software development",
   "author": "Tyler Casey",

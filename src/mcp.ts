@@ -46,7 +46,11 @@ import {
   SprintLeaveSchema,
   SprintMembersSchema,
   SprintShareSchema,
-  SprintSharesSchema
+  SprintSharesSchema,
+  // Convenience schemas (v0.5.2) - token optimization
+  ContextSchema,
+  StartWorkSchema,
+  FinishWorkSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -139,8 +143,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_task_create',
-        description:
-          'Create a new task in SCRUM. Tasks are the top-level work items that intents and evidence attach to. Returns the created task with its ID.',
+        description: 'Create a new task. Returns task with ID.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -158,8 +161,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_task_get',
-        description:
-          'Get a task by ID, including all its intents and evidence. Use this to see the full context of a task.',
+        description: 'Get task by ID with intents and evidence.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -170,7 +172,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_task_list',
-        description: 'List recent tasks to find pending work or check project status. Use at SESSION START to see what is in progress. Returns tasks newest-first with status counts.',
+        description: 'List recent tasks. Returns newest-first.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -181,8 +183,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_intent_post',
-        description:
-          'Post an intent declaring what you plan to change. SCRUM contract requires posting intent BEFORE claiming files. Include files you will touch, boundaries (what you promise NOT to change), and acceptance criteria. NOTE: acceptanceCriteria is REQUIRED.',
+        description: 'Declare intent BEFORE claiming. Required: files to modify, acceptanceCriteria.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -201,8 +202,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_claim',
-        description:
-          'Claim exclusive access to files. REQUIRES: You must have posted an intent (scrum_intent_post) for these files first. Returns conflicts if another agent already has a claim. Claims expire after TTL.',
+        description: 'Claim files. REQUIRES intent first. Returns conflicts if claimed.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -219,7 +219,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_claim_release',
-        description: 'Release your claims on files. REQUIRES: You must have attached evidence (scrum_evidence_attach) before releasing. No receipts = no release.',
+        description: 'Release claims. REQUIRES evidence first.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -235,7 +235,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_claims_list',
-        description: 'List all active claims. Use this to see what files are claimed by which agents.',
+        description: 'List all active claims.',
         inputSchema: {
           type: 'object',
           properties: {},
@@ -244,7 +244,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_claim_extend',
-        description: 'Extend the TTL of your active claims without releasing them. Use this when you need more time to complete work and don\'t want to release and re-claim (which would require re-attaching evidence).',
+        description: 'Extend claim TTL without releasing.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -261,8 +261,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_evidence_attach',
-        description:
-          'Attach evidence (command + output) to a task. SCRUM contract requires evidence for all claims. No receipts = no merge.',
+        description: 'Attach evidence (command + output). Required before release.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -276,8 +275,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_overlap_check',
-        description:
-          'Check if any files have active claims by other agents. Use this before starting work to avoid conflicts.',
+        description: 'Check if files are claimed by others.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -292,8 +290,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_changelog_log',
-        description:
-          'Log a file change or task event to the changelog. Call this AFTER making any file edit to maintain a searchable history of all changes. Task events (status changes, assignments, etc.) are logged automatically by the system. This enables git-bisect-like debugging to find when issues were introduced.',
+        description: 'Log a file change. Call AFTER each edit.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -319,8 +316,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_changelog_search',
-        description:
-          'Search the changelog to find file changes and task events (status changes, assignments, blockers, dependencies, comments). Use this to debug issues by tracing file history, finding which agent made changes, tracking task transitions, or searching for specific modifications.',
+        description: 'Search changelog for file changes and events.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -367,8 +363,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_board',
-        description:
-          'Get the kanban board for a visual overview of all work. Use to identify bottlenecks (too many in_progress) or find available tasks (backlog/todo). Returns tasks grouped by: backlog, todo, in_progress, review, done.',
+        description: 'Get kanban board. Tasks grouped by status.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -380,7 +375,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_comment_add',
-        description: 'Add a comment to a task for discussion, decisions, or questions. Use comments to record rationale that other agents can reference. Comments appear in task detail and are preserved for knowledge sharing.',
+        description: 'Add comment to task for discussion.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -393,7 +388,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_comments_list',
-        description: 'List all comments on a task to review discussions, decisions, and context. Use BEFORE starting work to understand rationale from previous agents.',
+        description: 'List comments on a task.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -457,7 +452,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // ==================== DEAD WORK DETECTION ====================
       {
         name: 'scrum_dead_work',
-        description: 'Find potentially abandoned tasks. Tasks claimed but not updated recently may need cleanup or reassignment.',
+        description: 'Find stale/abandoned claims.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -469,7 +464,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       // ==================== COMPLIANCE ====================
       {
         name: 'scrum_compliance_check',
-        description: 'Verify your work matches your declared intent. Returns compliance score and specific violations. MUST call before releasing claims or completing tasks. Blocks release if undeclared files modified or boundaries violated. Returns actionable feedback so you can iterate to fix issues.',
+        description: 'Check compliance before release. Returns score and violations.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -608,6 +603,51 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['sprintId']
         }
+      },
+      // ==================== CONVENIENCE TOOLS (v0.5.2) ====================
+      // Token-optimized tools that combine common workflow steps
+      {
+        name: 'scrum_context',
+        description: 'Get full session context in ONE call. Returns: server status, recent tasks, active claims, and board. Use at SESSION START instead of calling status/task_list/claims_list/board separately. Saves ~450 tokens.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskLimit: { type: 'number', description: 'Max tasks to return (1-50, default 10)' },
+            includeBoard: { type: 'boolean', description: 'Include kanban board (default true)' }
+          },
+          required: []
+        }
+      },
+      {
+        name: 'scrum_start_work',
+        description: 'Start work on files in ONE call. Does: overlap_check → intent_post → claim. Use instead of calling these 3 tools separately. Saves ~200 tokens. Returns conflict info if files are claimed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID' },
+            agentId: { type: 'string', description: 'Your agent ID' },
+            files: { type: 'array', items: { type: 'string' }, description: 'Files to claim' },
+            acceptanceCriteria: { type: 'string', description: 'How to verify work is done (min 10 chars)' },
+            boundaries: { type: 'string', description: 'What you promise NOT to touch (optional)' },
+            ttlSeconds: { type: 'number', description: 'Claim duration (5-3600, default 900)' }
+          },
+          required: ['taskId', 'agentId', 'files', 'acceptanceCriteria']
+        }
+      },
+      {
+        name: 'scrum_finish_work',
+        description: 'Finish work in ONE call. Does: evidence_attach → compliance_check → claim_release. Use instead of calling these tools separately. Saves ~100 tokens. Fails if compliance check fails.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID' },
+            agentId: { type: 'string', description: 'Your agent ID' },
+            command: { type: 'string', description: 'Command that proves work (e.g., "npm test")' },
+            output: { type: 'string', description: 'Command output as evidence' },
+            files: { type: 'array', items: { type: 'string' }, description: 'Files to release (omit for all)' }
+          },
+          required: ['taskId', 'agentId', 'command', 'output']
+        }
       }
     ]
   };
@@ -627,7 +667,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const soloTools = [
           'scrum_status', 'scrum_task_create', 'scrum_task_get', 'scrum_task_list', 'scrum_task_update',
           'scrum_intent_post', 'scrum_claim', 'scrum_claim_release', 'scrum_claims_list',
-          'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board', 'scrum_compliance_check'
+          'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board', 'scrum_compliance_check',
+          // Convenience tools (v0.5.2) - token optimized
+          'scrum_context', 'scrum_start_work', 'scrum_finish_work'
         ];
         const teamTools = [
           ...soloTools,
@@ -1636,6 +1678,178 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               message: unansweredQuestions.length > 0
                 ? `${context.members.length} agent(s) in sprint. ${unansweredQuestions.length} unanswered question(s) - can you help?`
                 : `${context.members.length} agent(s) in sprint. Review decisions and interfaces before starting work.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== CONVENIENCE TOOLS (v0.5.2) ====================
+
+      case 'scrum_context': {
+        const input = ContextSchema.parse(args ?? {});
+        const taskLimit = input.taskLimit ?? 10;
+        const includeBoard = input.includeBoard ?? true;
+
+        // Gather all context in one call
+        const status = state.status();
+        const tasks = state.listTasks(taskLimit);
+        const claims = state.listActiveClaims();
+        const board = includeBoard ? state.getBoard() : null;
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: {
+                ok: true,
+                tasks: status.tasks,
+                claims: status.claims
+              },
+              recentTasks: tasks,
+              activeClaims: claims,
+              board: board,
+              summary: {
+                taskCount: tasks.length,
+                claimCount: claims.length,
+                inProgressCount: board?.in_progress?.length ?? 0
+              },
+              hint: 'Use scrum_start_work(taskId, agentId, files, acceptanceCriteria) to begin work'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_start_work': {
+        const input = StartWorkSchema.parse(args);
+
+        // Step 1: Check for overlaps (same logic as scrum_overlap_check)
+        const existingClaims = state.listActiveClaims();
+        const overlaps: { file: string; claimedBy: string; expiresAt: number }[] = [];
+        for (const claim of existingClaims) {
+          for (const file of input.files) {
+            if (claim.files.includes(file)) {
+              overlaps.push({ file, claimedBy: claim.agentId, expiresAt: claim.expiresAt });
+            }
+          }
+        }
+        if (overlaps.length > 0) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'conflict',
+                reason: 'FILES_CLAIMED',
+                message: `Files already claimed by other agents`,
+                conflicts: overlaps,
+                hint: 'Wait for claims to be released or work on different files'
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+
+        // Step 2: Post intent
+        const intent = state.postIntent({
+          taskId: input.taskId,
+          agentId: input.agentId,
+          files: input.files,
+          boundaries: input.boundaries,
+          acceptanceCriteria: input.acceptanceCriteria
+        });
+
+        // Step 3: Create claim
+        const claimResult = state.createClaim(
+          input.agentId,
+          input.files,
+          input.ttlSeconds ?? 900
+        );
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              message: 'Work started successfully',
+              intent: intent,
+              claim: claimResult.claim,
+              expiresIn: `${input.ttlSeconds ?? 900} seconds`,
+              nextSteps: [
+                'Make your changes to the claimed files',
+                'Log changes with scrum_changelog_log()',
+                'When done: scrum_finish_work(taskId, agentId, command, output)'
+              ]
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_finish_work': {
+        const input = FinishWorkSchema.parse(args);
+
+        // Step 1: Attach evidence
+        const evidence = state.attachEvidence({
+          taskId: input.taskId,
+          agentId: input.agentId,
+          command: input.command,
+          output: input.output
+        });
+
+        // Step 2: Check compliance
+        const compliance = state.checkCompliance(input.taskId, input.agentId);
+
+        // Block on scope violations
+        if (!compliance.checks.filesMatch.passed && compliance.checks.filesMatch.undeclared.length > 0) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'rejected',
+                reason: 'SCOPE_VIOLATION',
+                message: `Modified files not in intent: ${compliance.checks.filesMatch.undeclared.join(', ')}`,
+                evidence: evidence,
+                compliance: compliance,
+                nextSteps: getComplianceNextSteps(compliance)
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+
+        // Block on boundary violations
+        if (!compliance.checks.boundariesRespected.passed) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'rejected',
+                reason: 'BOUNDARY_VIOLATION',
+                message: `Modified files you promised NOT to touch: ${compliance.checks.boundariesRespected.violations.join(', ')}`,
+                evidence: evidence,
+                compliance: compliance,
+                nextSteps: getComplianceNextSteps(compliance)
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+
+        // Step 3: Release claims
+        const released = state.releaseClaims(input.agentId, input.files);
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              message: 'Work finished successfully',
+              evidence: evidence,
+              compliance: {
+                compliant: compliance.compliant,
+                score: compliance.score,
+                summary: compliance.summary
+              },
+              released: released,
+              hint: 'Ready to commit. Pre-commit hook will verify compliance.'
             }, null, 2)
           }]
         };

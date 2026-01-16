@@ -838,3 +838,43 @@ export const StatusSchema = z.object({
   profile: StatusProfileEnum.optional()
 });
 export type StatusInput = z.infer<typeof StatusSchema>;
+
+// ==================== CONVENIENCE SCHEMAS (v0.5.2) ====================
+// Token-optimized tools that combine common workflow steps
+
+/**
+ * scrum_context - Combines status, task_list, claims_list, board into one call
+ * Saves ~450 tokens per session startup
+ */
+export const ContextSchema = z.object({
+  taskLimit: z.number().int().min(1).max(50).default(10).optional(),
+  includeBoard: z.boolean().default(true).optional()
+});
+export type ContextInput = z.infer<typeof ContextSchema>;
+
+/**
+ * scrum_start_work - Combines overlap_check, intent_post, claim into one call
+ * Saves ~200 tokens per task
+ */
+export const StartWorkSchema = z.object({
+  taskId: TaskIdField,
+  agentId: AgentIdField,
+  files: FilesArrayField,
+  acceptanceCriteria: z.string().min(10).max(4000),
+  boundaries: z.string().max(4000).optional(),
+  ttlSeconds: z.number().int().min(5).max(3600).default(900).optional()
+});
+export type StartWorkInput = z.infer<typeof StartWorkSchema>;
+
+/**
+ * scrum_finish_work - Combines evidence_attach, claim_release into one call
+ * Saves ~100 tokens per task
+ */
+export const FinishWorkSchema = z.object({
+  taskId: TaskIdField,
+  agentId: AgentIdField,
+  command: z.string().min(1).max(500),
+  output: z.string().min(1).max(50000),
+  files: z.array(z.string().min(1)).optional() // If omitted, releases all claims
+});
+export type FinishWorkInput = z.infer<typeof FinishWorkSchema>;

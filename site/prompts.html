@@ -296,12 +296,17 @@ Violations of these rules will be caught by pre-commit hooks and your commits wi
 
 ## Session Startup (Do This First!)
 
-When starting a session, AUTOMATICALLY run:
+When starting a session, use the token-optimized context tool:
 ```
-scrum_status()      # Check server status and your profile
-scrum_task_list()   # See pending/active tasks
-scrum_claims_list() # See what files are claimed by other agents
-scrum_board()       # See kanban board for bottlenecks
+scrum_context()     # Returns: status, tasks, claims, board in ONE call
+```
+
+Or for granular control:
+```
+scrum_status()      # Server status
+scrum_task_list()   # Tasks
+scrum_claims_list() # Claims
+scrum_board()       # Board
 ```
 
 This gives you situational awareness of what other agents are working on.
@@ -326,6 +331,34 @@ This project uses **SCRUM (Synchronised Claims Registry for Unified Multi-agents
 ### Enforced Workflow
 
 **SCRUM enforces this workflow at the server level. You cannot skip steps - the tools will reject your requests.**
+
+#### Quick Workflow (v0.5.2 - Token Optimized)
+
+```
+# 1. Get context
+scrum_context()
+
+# 2. Start work (does: overlap_check → intent_post → claim)
+scrum_start_work(
+  taskId: "task-id",
+  agentId: "your-id",
+  files: ["file.ts"],
+  acceptanceCriteria: "Tests pass"
+)
+
+# 3. Make changes, log each edit
+scrum_changelog_log(agentId, filePath, changeType, summary)
+
+# 4. Finish work (does: evidence_attach → compliance_check → claim_release)
+scrum_finish_work(
+  taskId: "task-id",
+  agentId: "your-id",
+  command: "npm test",
+  output: "All tests passed"
+)
+```
+
+#### Granular Workflow (Full Control)
 
 1. **Check for conflicts** before touching any files:
    ```
@@ -739,43 +772,48 @@ scrum_comments_list(taskId)
           </div>
 
           <div class="prompt-section">
-            <h3>Available MCP Tools (32 in v0.5.1)</h3>
+            <h3>Available MCP Tools (35 in v0.5.2)</h3>
             <p>Once configured, agents will have access to these SCRUM MCP tools:</p>
             <div class="prompt-block" style="max-height: none;">
-              <pre style="max-height: none;">## Core Tools
+              <pre style="max-height: none;">## Convenience Tools (v0.5.2 - Token Optimized) ⭐
 
-scrum_status(profile?)      # Check server status (profile: solo|team|full)
-scrum_task_list()           # List all tasks
-scrum_task_create()         # Create a new task
+scrum_context()             # Session startup in ONE call (~450 tokens saved)
+scrum_start_work()          # overlap + intent + claim in ONE call (~200 tokens saved)
+scrum_finish_work()         # evidence + compliance + release in ONE call (~100 tokens saved)
+
+## Core Tools
+
+scrum_status(profile?)      # Server status (profile: solo|team|full)
+scrum_task_list()           # List tasks
+scrum_task_create()         # Create task
 scrum_task_get()            # Get task details
-scrum_task_update()         # Update task status/fields
-scrum_board()               # Kanban board view
-scrum_intent_post()         # Declare intent before claiming
-scrum_overlap_check()       # Check for file conflicts
-scrum_claim()               # Claim files for editing
-scrum_claim_release()       # Release file claims
-scrum_claim_extend()        # Extend claim TTL
-scrum_claims_list()         # List all active claims
+scrum_task_update()         # Update task
+scrum_board()               # Kanban board
+scrum_intent_post()         # Declare intent
+scrum_overlap_check()       # Check conflicts
+scrum_claim()               # Claim files
+scrum_claim_release()       # Release claims
+scrum_claim_extend()        # Extend TTL
+scrum_claims_list()         # List claims
 
 ## Evidence & Changelog
 
-scrum_evidence_attach()     # Attach proof of work
-scrum_changelog_log()       # Log a file change
-scrum_changelog_search()    # Search change history
-scrum_dead_work()           # Find stale/abandoned work
+scrum_evidence_attach()     # Attach proof
+scrum_changelog_log()       # Log change
+scrum_changelog_search()    # Search history
+scrum_dead_work()           # Find stale work
 
-## Compliance (CRITICAL!)
+## Compliance
 
-scrum_compliance_check()    # Check compliance before commit
-                            # Returns: { compliant, score, issues }
+scrum_compliance_check()    # Check before commit
 
-## Consolidated Tools (v0.5.1)
+## Consolidated Tools
 
 scrum_blocker(action)       # add | resolve | list
 scrum_dependency(action)    # add | remove | get | check
 scrum_metrics(type)         # board | velocity | aging | task
-scrum_comment_add()         # Add task discussion
-scrum_comments_list()       # List task comments
+scrum_comment_add()         # Add comment
+scrum_comments_list()       # List comments
 
 ## Sprint Tools (Multi-Agent Collaboration)
 
