@@ -311,6 +311,52 @@ scrum_board()       # Board
 
 This gives you situational awareness of what other agents are working on.
 
+## Profile Selection
+
+SCRUM MCP has three profiles with different tool sets. **Choose based on your situation:**
+
+| Profile | Tools | When to Use |
+|---------|-------|-------------|
+| `solo` | 16 | Single agent, simple task. No sprint active, working alone. |
+| `team` | 25 | Multiple agents on DIFFERENT tasks. Other claims exist, no shared sprint. |
+| `full` | 38 | Sprint collaboration. Multiple agents on SAME task. |
+
+**Auto-detection logic:**
+```
+if (sprint exists for task) → use "full"
+else if (other agents have active claims) → use "team"
+else → use "solo"
+```
+
+To check current profile:
+```
+scrum_context()  # Response includes suggested profile based on state
+scrum_status(profile: "solo")  # Get only solo tools
+```
+
+## Agent Naming Convention
+
+Use descriptive agent IDs for dashboard clarity and coordination:
+
+**Pattern:** `{tool}-{role}-{shortId}`
+
+| Example | Meaning |
+|---------|---------|
+| `claude-orchestrator-main` | Main orchestrator agent |
+| `claude-worker-backend-a1b2` | Backend-focused worker |
+| `claude-worker-tests-c3d4` | Test-focused worker |
+| `cursor-reviewer-e5f6` | Code reviewer in Cursor |
+
+**For sub-agent orchestration:** `{parent}-{focus}-{seq}`
+
+| Example | Meaning |
+|---------|---------|
+| `main-auth-1` | First auth worker spawned by main |
+| `main-frontend-2` | Second worker, frontend focus |
+| `main-tests-3` | Third worker, test focus |
+
+**Dashboard visibility:** When you see "main-auth-1 claimed src/auth.ts", it's immediately clear what that agent is doing and who spawned it.
+
 ## Code Quality Requirements
 
 Before releasing any file claims, you MUST:
@@ -428,10 +474,12 @@ scrum_changelog_search(
 
 ### Agent Identity
 
-Each agent instance MUST use a unique `agentId`. Suggested format:
-- `claude-code-{session-hash}`
-- `cursor-{timestamp}`
-- `agent-{random-id}`
+Each agent instance MUST use a unique `agentId`. See "Agent Naming Convention" section above for patterns.
+
+**Quick examples:**
+- Orchestrator: `claude-orchestrator-main`
+- Workers: `main-backend-1`, `main-tests-2`, `main-frontend-3`
+- Solo agent: `claude-solo-a1b2`
 
 ### Conflict Resolution
 
@@ -523,6 +571,92 @@ When multiple sub-agents work on the same task, use Sprint for shared context:
    ```
    scrum_sprint_leave(sprintId, agentId)
    ```
+
+## Orchestration Workflow (v0.5.2)
+
+When spawning multiple sub-agents for parallel work, use the orchestration tools for automatic coordination:
+
+### If You're the Orchestrator
+
+1. **Start orchestration** (creates sprint + generates worker configs):
+   ```
+   scrum_orchestrate_start(
+     taskId: "task-id",
+     orchestratorId: "claude-orchestrator-main",
+     goal: "Implement user authentication",
+     workers: [
+       { focus: "backend", files: ["src/auth.ts", "src/db.ts"] },
+       { focus: "frontend", files: ["src/components/Login.tsx"] },
+       { focus: "tests", files: ["tests/auth.test.ts"] }
+     ]
+   )
+   ```
+   Returns worker configs with auto-generated IDs like `main-backend-1`, `main-frontend-2`, etc.
+
+2. **Pass worker configs to sub-agents** when spawning them. Each config includes:
+   - `agentId`: Pre-generated worker ID
+   - `files`: Files to claim
+   - `startCommand`: Ready-to-use scrum_start_work call
+   - `completeCommand`: Template for scrum_worker_complete
+
+3. **Monitor progress**:
+   ```
+   scrum_orchestrate_status(sprintId: "sprint-abc")
+   ```
+   Returns: active workers, completed/failed/blocked counts, any issues
+
+4. **Complete when all workers done**:
+   ```
+   scrum_sprint_complete(sprintId: "sprint-abc")
+   ```
+
+### If You're a Worker (Sub-Agent)
+
+1. **Start work** (uses the config passed by orchestrator):
+   ```
+   scrum_start_work(taskId, agentId, files, acceptanceCriteria)
+   ```
+
+2. **Do your work** (standard SCRUM: make changes → changelog_log)
+
+3. **Signal completion**:
+   ```
+   scrum_worker_complete(
+     sprintId: "sprint-abc",
+     agentId: "main-backend-1",
+     status: "success",  // or "failed" or "blocked"
+     result: "Implemented JWT auth with bcrypt password hashing",
+     filesModified: ["src/auth.ts", "src/db.ts"]
+   )
+   ```
+
+### Orchestration Flow Diagram
+
+```
+Orchestrator                    Workers
+     │
+     ├─► scrum_orchestrate_start()
+     │        │
+     │        ├──► Worker 1: main-backend-1
+     │        │         ├─► scrum_start_work()
+     │        │         ├─► (do work)
+     │        │         └─► scrum_worker_complete(success)
+     │        │
+     │        ├──► Worker 2: main-frontend-2
+     │        │         ├─► scrum_start_work()
+     │        │         ├─► (do work)
+     │        │         └─► scrum_worker_complete(success)
+     │        │
+     │        └──► Worker 3: main-tests-3
+     │                  ├─► scrum_start_work()
+     │                  ├─► (do work)
+     │                  └─► scrum_worker_complete(blocked)
+     │
+     ├─► scrum_orchestrate_status()
+     │        └─► { success: 2, blocked: 1 }
+     │
+     └─► Handle blocked worker, then sprint_complete()
+```
 
 ### Share Types
 
@@ -626,6 +760,27 @@ scrum_comments_list(taskId)                  # Read discussion
 
 Pre-commit hooks will BLOCK commits that violate these rules.
 
+## Profile Selection
+
+| Profile | Tools | When to Use |
+|---------|-------|-------------|
+| `solo` | 16 | Single agent, no sprint, working alone |
+| `team` | 25 | Multiple agents on DIFFERENT tasks |
+| `full` | 38 | Sprint collaboration on SAME task |
+
+Auto-detect: `scrum_context()` suggests the right profile based on state.
+
+## Agent Naming Convention
+
+**Pattern:** `{tool}-{role}-{shortId}`
+
+Examples:
+- `cursor-orchestrator-main` - Main orchestrator
+- `cursor-worker-api-a1b2` - API-focused worker
+- `main-auth-1`, `main-tests-2` - Sub-agents spawned by main
+
+Use descriptive names so dashboard shows "main-auth-1 claimed src/auth.ts" - immediately clear.
+
 ## Session Startup (Do First!)
 
 AUTOMATICALLY run at session start:
@@ -684,7 +839,7 @@ Search changelog to find when issues were introduced:
 
 ### Agent Identity
 
-Use a unique agentId like `cursor-{timestamp}` or `cursor-{random}`.
+See "Agent Naming Convention" above. Examples: `cursor-solo-a1b2`, `cursor-worker-api-c3d4`
 
 ### Conflict Resolution
 
@@ -772,7 +927,7 @@ scrum_comments_list(taskId)
           </div>
 
           <div class="prompt-section">
-            <h3>Available MCP Tools (35 in v0.5.2)</h3>
+            <h3>Available MCP Tools (38 in v0.5.2)</h3>
             <p>Once configured, agents will have access to these SCRUM MCP tools:</p>
             <div class="prompt-block" style="max-height: none;">
               <pre style="max-height: none;">## Convenience Tools (v0.5.2 - Token Optimized) ⭐
@@ -828,6 +983,12 @@ scrum_sprint_list()         # List sprints
 scrum_sprint_members()      # List sprint members
 scrum_sprint_shares()       # List shared context
 scrum_sprint_complete()     # Mark sprint complete
+
+## Orchestration Tools (v0.5.2) ⭐
+
+scrum_orchestrate_start()   # Start parallel workers (creates sprint + worker configs)
+scrum_worker_complete()     # Signal worker done (success/failed/blocked)
+scrum_orchestrate_status()  # Get orchestration progress
 
 ## Workflow Enforcement
 

@@ -145,11 +145,11 @@
       <div class="container">
         <div class="section-head" data-reveal>
           <p class="eyebrow eyebrow-new">New in v0.5.2</p>
-          <h2>Token-optimized tools save ~50% overhead.</h2>
+          <h2>Token-optimized + orchestration tools.</h2>
           <p>
-            v0.5.2 adds convenience tools that combine common workflows into single calls.
-            scrum_context(), scrum_start_work(), scrum_finish_work() reduce token usage
-            from ~1,500 to ~700 tokens per task. Plus trimmed descriptions and pre-commit hooks.
+            v0.5.2 adds convenience tools that combine common workflows into single calls,
+            plus orchestration tools for spawning and coordinating parallel workers.
+            Profile auto-detection suggests solo/team/full based on current state.
           </p>
         </div>
         <div class="feature-grid feature-grid-new">
@@ -189,10 +189,10 @@
             </p>
           </article>
           <article class="card card-new" data-reveal>
-            <h3>Profile Discovery</h3>
+            <h3>Profile Auto-Detection</h3>
             <p>
-              scrum_status(profile: "solo|team|full") shows only relevant tools.
-              Solo: 15 core. Team: 24. Full: all 35.
+              scrum_context() auto-suggests the right profile based on sprints and claims.
+              Solo: 16 tools. Team: 25. Full: all 38.
             </p>
           </article>
           <article class="card card-new" data-reveal>
@@ -228,6 +228,13 @@
             <p>
               Create sprints where multiple agents coordinate on the same task.
               Share decisions, interfaces, Q&A.
+            </p>
+          </article>
+          <article class="card card-new" data-reveal>
+            <h3>Orchestration Tools</h3>
+            <p>
+              scrum_orchestrate_start() spawns parallel workers with auto-generated IDs.
+              Workers call scrum_worker_complete() when done.
             </p>
           </article>
           <article class="card card-new" data-reveal>

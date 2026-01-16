@@ -878,3 +878,48 @@ export const FinishWorkSchema = z.object({
   files: z.array(z.string().min(1)).optional() // If omitted, releases all claims
 });
 export type FinishWorkInput = z.infer<typeof FinishWorkSchema>;
+
+// ==================== ORCHESTRATION SCHEMAS (v0.5.2) ====================
+// Tools for multi-agent orchestration patterns
+
+/**
+ * Worker definition for orchestration - describes a sub-agent's role
+ */
+export const WorkerDefSchema = z.object({
+  focus: z.string().min(1).max(100).describe('What this worker focuses on (e.g., "backend", "tests", "auth")'),
+  files: z.array(z.string().min(1)).describe('Files this worker will claim'),
+  instructions: z.string().max(2000).optional().describe('Specific instructions for this worker')
+});
+export type WorkerDef = z.infer<typeof WorkerDefSchema>;
+
+/**
+ * scrum_orchestrate_start - Set up parallel workers for a task
+ * Creates sprint, generates worker IDs, pre-registers workers
+ */
+export const OrchestrateStartSchema = z.object({
+  taskId: TaskIdField,
+  orchestratorId: AgentIdField.describe('Your agent ID as the orchestrator'),
+  goal: z.string().min(5).max(500).describe('Sprint goal describing the integration objective'),
+  workers: z.array(WorkerDefSchema).min(1).max(10).describe('Worker definitions for parallel execution')
+});
+export type OrchestrateStartInput = z.infer<typeof OrchestrateStartSchema>;
+
+/**
+ * scrum_worker_complete - Signal worker completion to orchestrator
+ */
+export const WorkerCompleteSchema = z.object({
+  sprintId: z.string().min(1),
+  agentId: AgentIdField,
+  status: z.enum(['success', 'failed', 'blocked']).describe('Outcome of worker task'),
+  result: z.string().max(10000).describe('Summary of what was done or why it failed'),
+  filesModified: z.array(z.string()).optional().describe('Files actually modified (for verification)')
+});
+export type WorkerCompleteInput = z.infer<typeof WorkerCompleteSchema>;
+
+/**
+ * scrum_orchestrate_status - Get orchestration progress overview
+ */
+export const OrchestrateStatusSchema = z.object({
+  sprintId: z.string().min(1)
+});
+export type OrchestrateStatusInput = z.infer<typeof OrchestrateStatusSchema>;

@@ -50,7 +50,11 @@ import {
   // Convenience schemas (v0.5.2) - token optimization
   ContextSchema,
   StartWorkSchema,
-  FinishWorkSchema
+  FinishWorkSchema,
+  // Orchestration schemas (v0.5.2)
+  OrchestrateStartSchema,
+  WorkerCompleteSchema,
+  OrchestrateStatusSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -648,6 +652,61 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['taskId', 'agentId', 'command', 'output']
         }
+      },
+
+      // ==================== ORCHESTRATION TOOLS (v0.5.2) ====================
+      // Tools for multi-agent orchestration patterns
+      {
+        name: 'scrum_orchestrate_start',
+        description: 'Start orchestrated parallel work. Creates sprint, generates worker IDs, and returns worker configs. Use when spawning multiple sub-agents for a task. Each worker gets: agentId, files, focus, instructions.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            taskId: { type: 'string', description: 'Task ID to work on' },
+            orchestratorId: { type: 'string', description: 'Your agent ID as orchestrator (e.g., "claude-orchestrator-main")' },
+            goal: { type: 'string', description: 'Sprint goal describing integration objective' },
+            workers: {
+              type: 'array',
+              description: 'Worker definitions',
+              items: {
+                type: 'object',
+                properties: {
+                  focus: { type: 'string', description: 'Worker focus area (e.g., "backend", "tests")' },
+                  files: { type: 'array', items: { type: 'string' }, description: 'Files for this worker' },
+                  instructions: { type: 'string', description: 'Specific instructions (optional)' }
+                },
+                required: ['focus', 'files']
+              }
+            }
+          },
+          required: ['taskId', 'orchestratorId', 'goal', 'workers']
+        }
+      },
+      {
+        name: 'scrum_worker_complete',
+        description: 'Signal worker completion. Call this when a worker finishes (success/failed/blocked). Orchestrator sees status via scrum_orchestrate_status.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID from orchestrate_start' },
+            agentId: { type: 'string', description: 'Worker agent ID' },
+            status: { type: 'string', enum: ['success', 'failed', 'blocked'], description: 'Outcome' },
+            result: { type: 'string', description: 'Summary of work done or failure reason' },
+            filesModified: { type: 'array', items: { type: 'string' }, description: 'Files actually changed' }
+          },
+          required: ['sprintId', 'agentId', 'status', 'result']
+        }
+      },
+      {
+        name: 'scrum_orchestrate_status',
+        description: 'Get orchestration progress. Returns worker states, completion counts, and any issues. Use to monitor parallel workers.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sprintId: { type: 'string', description: 'Sprint ID from orchestrate_start' }
+          },
+          required: ['sprintId']
+        }
       }
     ]
   };
@@ -682,7 +741,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           'scrum_sprint_join', 'scrum_sprint_leave', 'scrum_sprint_members',
           'scrum_sprint_share', 'scrum_sprint_shares', 'scrum_sprint_context'
         ];
-        const fullTools = [...teamTools, ...sprintTools];
+        const orchestrationTools = [
+          'scrum_orchestrate_start', 'scrum_worker_complete', 'scrum_orchestrate_status'
+        ];
+        const fullTools = [...teamTools, ...sprintTools, ...orchestrationTools];
 
         let recommendedTools: string[];
         if (input.profile === 'solo') {
@@ -1696,6 +1758,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const claims = state.listActiveClaims();
         const board = includeBoard ? state.getBoard() : null;
 
+        // Auto-detect suggested profile based on state
+        const activeSprints = state.listSprints({ status: 'active' });
+        const hasActiveSprint = activeSprints.length > 0;
+        const hasOtherClaims = claims.length > 0;
+
+        let suggestedProfile: 'solo' | 'team' | 'full' = 'solo';
+        let profileReason: string;
+
+        if (hasActiveSprint) {
+          suggestedProfile = 'full';
+          profileReason = `Active sprint detected (${activeSprints.length} sprint${activeSprints.length > 1 ? 's' : ''}). Use full profile for collaboration.`;
+        } else if (hasOtherClaims) {
+          suggestedProfile = 'team';
+          profileReason = `Other agents have claims (${claims.length} active). Use team profile for coordination.`;
+        } else {
+          suggestedProfile = 'solo';
+          profileReason = 'No sprints or other claims. Solo profile is sufficient.';
+        }
+
         return {
           content: [{
             type: 'text',
@@ -1712,6 +1793,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 taskCount: tasks.length,
                 claimCount: claims.length,
                 inProgressCount: board?.in_progress?.length ?? 0
+              },
+              profile: {
+                suggested: suggestedProfile,
+                reason: profileReason,
+                toolCounts: { solo: 16, team: 25, full: 38 }
               },
               hint: 'Use scrum_start_work(taskId, agentId, files, acceptanceCriteria) to begin work'
             }, null, 2)
@@ -1850,6 +1936,225 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               },
               released: released,
               hint: 'Ready to commit. Pre-commit hook will verify compliance.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== ORCHESTRATION TOOLS (v0.5.2) ====================
+
+      case 'scrum_orchestrate_start': {
+        const input = OrchestrateStartSchema.parse(args);
+
+        // Step 1: Create sprint for the task
+        const sprint = state.createSprint({
+          taskId: input.taskId,
+          goal: input.goal
+        });
+
+        // Step 2: Join as orchestrator
+        state.joinSprint({
+          sprintId: sprint.id,
+          agentId: input.orchestratorId,
+          workingOn: 'Orchestrating parallel workers',
+          focusArea: 'orchestration'
+        });
+
+        // Step 3: Generate worker configs with deterministic IDs
+        const workerConfigs = input.workers.map((worker, index) => {
+          // Generate agentId from orchestrator ID + focus + sequence
+          const baseId = input.orchestratorId.replace(/^[^-]+-/, '').split('-')[0] || 'main';
+          const agentId = `${baseId}-${worker.focus}-${index + 1}`;
+
+          return {
+            agentId,
+            sprintId: sprint.id,
+            taskId: input.taskId,
+            focus: worker.focus,
+            files: worker.files,
+            instructions: worker.instructions || `Work on ${worker.focus} for task ${input.taskId}`,
+            // Include context needed to start work
+            startCommand: {
+              tool: 'scrum_start_work',
+              args: {
+                taskId: input.taskId,
+                agentId,
+                files: worker.files,
+                acceptanceCriteria: `Complete ${worker.focus} work as part of sprint ${sprint.id}`
+              }
+            },
+            // Include completion command
+            completeCommand: {
+              tool: 'scrum_worker_complete',
+              args: {
+                sprintId: sprint.id,
+                agentId,
+                status: 'success',
+                result: '(fill in with actual result)'
+              }
+            }
+          };
+        });
+
+        // Step 4: Share orchestration plan
+        state.shareWithSprint({
+          sprintId: sprint.id,
+          agentId: input.orchestratorId,
+          shareType: 'context',
+          title: 'Orchestration Plan',
+          content: `Workers: ${workerConfigs.map(w => `${w.agentId} (${w.focus})`).join(', ')}`
+        });
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              message: `Orchestration started with ${workerConfigs.length} workers`,
+              sprint: {
+                id: sprint.id,
+                taskId: input.taskId,
+                goal: input.goal
+              },
+              workers: workerConfigs,
+              orchestrator: {
+                agentId: input.orchestratorId,
+                role: 'orchestrator'
+              },
+              hint: 'Pass each worker config to a sub-agent. Workers call scrum_start_work then scrum_worker_complete when done.'
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_worker_complete': {
+        const input = WorkerCompleteSchema.parse(args);
+
+        // Step 1: Share completion status
+        const share = state.shareWithSprint({
+          sprintId: input.sprintId,
+          agentId: input.agentId,
+          shareType: input.status === 'success' ? 'discovery' : 'context',
+          title: `Worker ${input.status}: ${input.agentId}`,
+          content: input.result
+        });
+
+        // Step 2: Leave the sprint
+        state.leaveSprint(input.sprintId, input.agentId);
+
+        // Step 3: Get current sprint status for response
+        const members = state.getSprintMembers(input.sprintId);
+        const shares = state.getSprintShares(input.sprintId);
+
+        // Count completion statuses from shares
+        const completionShares = shares.filter(s => s.title.startsWith('Worker '));
+        const successCount = completionShares.filter(s => s.title.includes('success')).length;
+        const failedCount = completionShares.filter(s => s.title.includes('failed')).length;
+        const blockedCount = completionShares.filter(s => s.title.includes('blocked')).length;
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              message: `Worker ${input.agentId} marked as ${input.status}`,
+              worker: {
+                agentId: input.agentId,
+                status: input.status,
+                result: input.result,
+                filesModified: input.filesModified
+              },
+              sprintProgress: {
+                activeMembers: members.length,
+                completed: successCount + failedCount + blockedCount,
+                success: successCount,
+                failed: failedCount,
+                blocked: blockedCount
+              },
+              hint: members.length === 1 ? 'Only orchestrator remains. Sprint may be ready to complete.' : `${members.length} members still active.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_orchestrate_status': {
+        const input = OrchestrateStatusSchema.parse(args);
+
+        // Gather all sprint information
+        const sprint = state.getSprint(input.sprintId);
+        if (!sprint) {
+          return {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                status: 'error',
+                message: `Sprint not found: ${input.sprintId}`
+              }, null, 2)
+            }],
+            isError: true
+          };
+        }
+
+        const members = state.getSprintMembers(input.sprintId);
+        const shares = state.getSprintShares(input.sprintId);
+
+        // Parse worker completion statuses from shares
+        const completionShares = shares.filter(s => s.title.startsWith('Worker '));
+        const workerStatuses = completionShares.map(s => {
+          const match = s.title.match(/Worker (success|failed|blocked): (.+)/);
+          return match ? { status: match[1], agentId: match[2], result: s.content } : null;
+        }).filter(Boolean);
+
+        const successCount = workerStatuses.filter(w => w?.status === 'success').length;
+        const failedCount = workerStatuses.filter(w => w?.status === 'failed').length;
+        const blockedCount = workerStatuses.filter(w => w?.status === 'blocked').length;
+
+        // Find orchestrator (focus = 'orchestration')
+        const orchestrator = members.find(m => m.focusArea === 'orchestration');
+        const activeWorkers = members.filter(m => m.focusArea !== 'orchestration');
+
+        // Get any unanswered questions
+        const questions = shares.filter(s => s.shareType === 'question');
+        const answers = shares.filter(s => s.shareType === 'answer');
+        const answeredIds = new Set(answers.map(a => a.replyToId).filter(Boolean));
+        const unansweredQuestions = questions.filter(q => !answeredIds.has(q.id));
+
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              status: 'ok',
+              sprint: {
+                id: sprint.id,
+                taskId: sprint.taskId,
+                goal: sprint.goal,
+                status: sprint.status
+              },
+              orchestrator: orchestrator ? {
+                agentId: orchestrator.agentId
+              } : null,
+              progress: {
+                totalWorkers: workerStatuses.length + activeWorkers.length,
+                completed: workerStatuses.length,
+                success: successCount,
+                failed: failedCount,
+                blocked: blockedCount,
+                active: activeWorkers.length
+              },
+              activeWorkers: activeWorkers.map(w => ({
+                agentId: w.agentId,
+                focus: w.focusArea,
+                workingOn: w.workingOn
+              })),
+              completedWorkers: workerStatuses,
+              issues: {
+                hasFailures: failedCount > 0,
+                hasBlocked: blockedCount > 0,
+                unansweredQuestions: unansweredQuestions.length
+              },
+              hint: activeWorkers.length === 0 && workerStatuses.length > 0
+                ? 'All workers complete. Review results and call scrum_sprint_complete if satisfied.'
+                : `${activeWorkers.length} workers still active.`
             }, null, 2)
           }]
         };
