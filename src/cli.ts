@@ -10,6 +10,7 @@ Usage:
   scrum task create --title "..." [--description "..."]
   scrum task list [--limit 50]
   scrum task get --id <taskId>
+  scrum task done --id <taskId> [--agentId <id>]
   scrum intent post --taskId <id> --agentId <id> --files "a,b" [--acceptance "..."] [--boundaries "..."]
   scrum claim --agentId <id> --files "a,b" [--ttl 900]
   scrum claim release --agentId <id> [--files "a,b"]
@@ -69,6 +70,15 @@ async function main(): Promise<void> {
     const id = getFlag(args, '--id');
     if (!id) return usage();
     const r = await request('GET', `/tasks/${id}`);
+    console.log(JSON.stringify(r.data, null, 2));
+    process.exit(r.status >= 400 ? 1 : 0);
+  }
+
+  if (a === 'task' && b === 'done') {
+    const id = getFlag(args, '--id');
+    if (!id) return usage();
+    const agentId = getFlag(args, '--agentId');
+    const r = await request('PATCH', `/tasks/${id}`, { status: 'done', assignedAgent: agentId });
     console.log(JSON.stringify(r.data, null, 2));
     process.exit(r.status >= 400 ? 1 : 0);
   }

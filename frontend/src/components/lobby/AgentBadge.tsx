@@ -8,14 +8,14 @@ interface AgentBadgeProps {
 // Generate a consistent color from agent ID
 function getAgentColor(agentId: string): string {
   const colors = [
-    'bg-cyan-500/20 text-cyan-400 border-cyan-500/30',
-    'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    'bg-green-500/20 text-green-400 border-green-500/30',
-    'bg-orange-500/20 text-orange-400 border-orange-500/30',
-    'bg-pink-500/20 text-pink-400 border-pink-500/30',
-    'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    'bg-red-500/20 text-red-400 border-red-500/30',
+    'bg-amber-500/20 text-amber-300 border-amber-500/30',
+    'bg-lime-500/20 text-lime-300 border-lime-500/30',
+    'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+    'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    'bg-rose-500/20 text-rose-300 border-rose-500/30',
+    'bg-yellow-500/20 text-yellow-300 border-yellow-500/30',
+    'bg-red-500/20 text-red-300 border-red-500/30',
+    'bg-stone-500/20 text-stone-300 border-stone-500/30',
   ];
 
   let hash = 0;

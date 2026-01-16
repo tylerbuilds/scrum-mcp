@@ -2,7 +2,6 @@
 Description=SCRUM API Server - Multi-Agent Coordination Backend
 Documentation=https://github.com/tylerbuilds/scrum-mcp
 After=network.target
-Before=orthanc.service
 
 [Service]
 Type=simple

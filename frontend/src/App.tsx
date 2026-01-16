@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { LobbyPage } from './pages/LobbyPage';
+import { ControlRoomPage } from './pages/ControlRoomPage';
 import { BoardPage } from './pages/BoardPage';
 import { TaskPage } from './pages/TaskPage';
 import { MetricsPage } from './pages/MetricsPage';
 
 type Route =
-  | { type: 'lobby' }
+  | { type: 'control' }
   | { type: 'board' }
   | { type: 'task'; taskId: string }
   | { type: 'metrics' };
@@ -21,7 +21,7 @@ function getRouteFromHash(): Route {
     return { type: 'task', taskId: taskMatch[1] };
   }
 
-  return { type: 'lobby' };
+  return { type: 'control' };
 }
 
 export function App() {
@@ -44,14 +44,14 @@ export function App() {
         return <TaskPage taskId={route.taskId} />;
       case 'metrics':
         return <MetricsPage />;
-      case 'lobby':
+      case 'control':
       default:
-        return <LobbyPage />;
+        return <ControlRoomPage />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100">
+    <div className="min-h-screen bg-[#0b0a08] text-stone-100">
       {renderPage()}
     </div>
   );

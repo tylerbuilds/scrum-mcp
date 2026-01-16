@@ -1,5 +1,5 @@
 [Unit]
-Description=Orthanc - SCRUM Multi-Agent Coordination Dashboard
+Description=SCRUM Frontend - React Dashboard
 Documentation=https://github.com/tylerbuilds/scrum-mcp
 After=network.target scrum-api.service
 Requires=scrum-api.service
@@ -8,17 +8,17 @@ Requires=scrum-api.service
 Type=simple
 User=boski
 Group=boski
-WorkingDirectory=/mnt/data/projects/scrum-mcp
-ExecStart=/home/linuxbrew/.linuxbrew/bin/node /mnt/data/projects/scrum-mcp/dashboard/server.cjs
+WorkingDirectory=/mnt/data/projects/scrum-mcp/frontend
+ExecStartPre=/home/linuxbrew/.linuxbrew/bin/npm run build
+ExecStart=/home/linuxbrew/.linuxbrew/bin/npm run preview -- --host 0.0.0.0 --port 5174
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=orthanc
+SyslogIdentifier=scrum-frontend
 
 # Environment
 Environment=NODE_ENV=production
-Environment=DASHBOARD_PORT=4398
 Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
 Environment=HOME=/home/boski
 
@@ -27,7 +27,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
-ReadWritePaths=/mnt/data/projects/scrum-mcp
+ReadWritePaths=/mnt/data/projects/scrum-mcp/frontend
 
 [Install]
 WantedBy=multi-user.target

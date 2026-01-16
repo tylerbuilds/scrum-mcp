@@ -70,6 +70,8 @@ async function main() {
   const db = openDb(cfg);
   const state = new ScrumState(db, log);
 
+  state.setEventListener(broadcast);
+
   await registerRoutes(app, state, cfg);
 
   // Minimal event read API for debugging

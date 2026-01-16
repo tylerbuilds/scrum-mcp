@@ -114,6 +114,17 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
   app.get('/api/status', async () => ok(state.status()));
 
+  // ==================== AUTO-REGISTRATION HELPER ====================
+  // Automatically register agents when they first use SCRUM (intent, claim, evidence)
+  const ensureAgentRegistered = (agentId: string, capabilities: string[] = []) => {
+    if (state.agentHeartbeat(agentId)) return;
+    state.registerAgent({
+      agentId,
+      capabilities: capabilities.length > 0 ? capabilities : ['working'],
+      metadata: { autoRegistered: true, registeredAt: Date.now() }
+    });
+  };
+
   app.get('/api/feed', async (req, reply) => {
     const parsed = FeedQuerySchema.safeParse(req.query);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
@@ -207,6 +218,10 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
   app.post('/api/intents', async (req, reply) => {
     const parsed = IntentPostSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    // Auto-register agent if not exists
+    ensureAgentRegistered(parsed.data.agentId, parsed.data.files);
+
     try {
       const intent = state.postIntent(parsed.data);
       return ok(intent);
@@ -243,6 +258,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
   app.post('/api/changelog', async (req, reply) => {
     const parsed = ChangelogLogSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    ensureAgentRegistered(parsed.data.agentId, ['changelog']);
     const entry = state.logChange(parsed.data);
     return ok(entry);
   });
@@ -250,6 +266,9 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
   app.post('/api/claims', async (req, reply) => {
     const parsed = ClaimCreateSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    // Auto-register agent if not exists
+    ensureAgentRegistered(parsed.data.agentId, parsed.data.files);
 
     // ENFORCEMENT: Must have declared intent for these files first
     const intentCheck = state.hasIntentForFiles(parsed.data.agentId, parsed.data.files);
@@ -277,6 +296,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
 
     const { agentId, files, additionalSeconds } = parsed.data;
+    ensureAgentRegistered(agentId, files ?? []);
     const result = state.extendClaims(agentId, additionalSeconds, files);
 
     if (result.extended === 0) {
@@ -293,6 +313,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
   app.delete('/api/claims', async (req, reply) => {
     const parsed = ClaimReleaseSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    ensureAgentRegistered(parsed.data.agentId);
 
     // ENFORCEMENT: Must have attached evidence before releasing claims
     const activeClaims = state.getAgentClaims(parsed.data.agentId);
@@ -335,6 +356,10 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
   app.post('/api/evidence', async (req, reply) => {
     const parsed = EvidenceAttachSchema.safeParse(req.body);
     if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    // Auto-register agent if not exists
+    ensureAgentRegistered(parsed.data.agentId, ['evidence']);
+
     try {
       const ev = state.attachEvidence(parsed.data);
       return ok(ev);
@@ -350,6 +375,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = CommentAddSchema.omit({ taskId: true }).safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+    ensureAgentRegistered(bodyParsed.data.agentId, ['comment']);
     try {
       const comment = state.addComment({
         taskId: paramsParsed.data.id,
@@ -407,6 +433,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
     if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
     const bodyParsed = BlockerAddSchema.omit({ taskId: true }).safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+    ensureAgentRegistered(bodyParsed.data.agentId, ['blocker']);
     try {
       const blocker = state.addBlocker({
         taskId: paramsParsed.data.id,
@@ -946,6 +973,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
     const bodyParsed = SprintJoinRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+    ensureAgentRegistered(bodyParsed.data.agentId, ['sprint']);
 
     const sprint = state.getSprint(paramsParsed.data.sprintId);
     if (!sprint) {
@@ -969,6 +997,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
     const bodyParsed = SprintLeaveRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+    ensureAgentRegistered(bodyParsed.data.agentId, ['sprint']);
 
     const left = state.leaveSprint(paramsParsed.data.sprintId, bodyParsed.data.agentId);
     return ok({ left });
@@ -997,6 +1026,7 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
     const bodyParsed = SprintShareRestSchema.safeParse(req.body);
     if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+    ensureAgentRegistered(bodyParsed.data.agentId, ['sprint']);
 
     const sprint = state.getSprint(paramsParsed.data.sprintId);
     if (!sprint) {

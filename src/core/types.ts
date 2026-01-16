@@ -126,11 +126,23 @@ export type ScrumEvent =
   | { type: 'file.added'; path: string; ts: number }
   | { type: 'file.deleted'; path: string; ts: number }
   | { type: 'task.created'; taskId: string; ts: number }
+  | { type: 'task.updated'; taskId: string; ts: number }
   | { type: 'intent.posted'; intentId: string; taskId: string; ts: number }
   | { type: 'claim.created'; agentId: string; files: string[]; expiresAt: number; ts: number }
+  | { type: 'claim.extended'; agentId: string; files: string[]; expiresAt: number; ts: number }
+  | { type: 'claim.released'; agentId: string; files: string[]; ts: number }
   | { type: 'claim.conflict'; agentId: string; files: string[]; conflictsWith: string[]; ts: number }
   | { type: 'evidence.attached'; evidenceId: string; taskId: string; ts: number }
-  | { type: 'gate.result'; ok: boolean; summary: string; ts: number };
+  | { type: 'changelog.logged'; entryId: string; taskId?: string; agentId: string; filePath: string; ts: number }
+  | { type: 'gate.result'; ok: boolean; summary: string; ts: number }
+  | { type: 'gate.run'; gateId: string; taskId: string; passed: boolean; ts: number }
+  | { type: 'comment.added'; commentId: string; taskId: string; ts: number }
+  | { type: 'blocker.added'; blockerId: string; taskId: string; ts: number }
+  | { type: 'blocker.resolved'; blockerId: string; taskId: string; ts: number }
+  | { type: 'dependency.added'; dependencyId: string; taskId: string; ts: number }
+  | { type: 'dependency.removed'; dependencyId: string; taskId: string; ts: number }
+  | { type: 'agent.registered'; agentId: string; ts: number }
+  | { type: 'agent.heartbeat'; agentId: string; ts: number };
 
 // ==================== METRICS ====================
 

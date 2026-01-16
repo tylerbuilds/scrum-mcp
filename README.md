@@ -46,46 +46,37 @@ Default endpoints:
 - WebSocket: `ws://localhost:4177/ws`
 - Dashboard: `http://localhost:5174` (see Frontend section)
 
-## Orthanc Dashboard (Lightweight)
-
-Orthanc is a zero-dependency dashboard for monitoring agent coordination. Runs on port 4398.
-
-```bash
-npm run dashboard
-# Opens http://localhost:4398
-```
-
-Features:
-- **Live feed** with 5-second auto-refresh
-- **Searchable** across tasks, agents, claims, changelog
-- **Views**: Feed, Kanban, Agents, Claims, Changelog, Metrics
-- **Low resource** - vanilla HTML/JS, no build step
-
 ### Autostart on Boot (Linux systemd)
 
 ```bash
-# Install both services (API + Dashboard)
+# Install the API service
 sudo cp dashboard/scrum-api.service /etc/systemd/system/
-sudo cp dashboard/orthanc.service /etc/systemd/system/
 sudo systemctl daemon-reload
 
 # Enable autostart on boot
-sudo systemctl enable scrum-api orthanc
+sudo systemctl enable scrum-api
 
 # Start now
-sudo systemctl start scrum-api orthanc
+sudo systemctl start scrum-api
 
 # Check status
-systemctl status scrum-api orthanc
+systemctl status scrum-api
 
 # View logs
 journalctl -u scrum-api -f
-journalctl -u orthanc -f
+
+# Optional: React dashboard service (production preview)
+sudo cp dashboard/scrum-frontend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable scrum-frontend
+sudo systemctl start scrum-frontend
+systemctl status scrum-frontend
+journalctl -u scrum-frontend -f
 ```
 
 The services run on:
 - **SCRUM API**: http://localhost:4177
-- **Orthanc Dashboard**: http://localhost:4398
+- **React Dashboard**: http://localhost:5174
 
 ## Frontend Dashboard (Full React)
 
@@ -380,11 +371,10 @@ The changelog automatically captures:
 5. ~~Add task templates with placeholder interpolation.~~ Done! (v0.3.0)
 6. ~~Add webhooks for event notifications.~~ Done! (v0.3.0)
 7. ~~Add agent registry for observability.~~ Done! (v0.3.0)
-8. ~~Add Orthanc dashboard for real-time monitoring.~~ Done! (v0.3.0)
-9. ~~Add compliance verification to ensure agents do what they declared.~~ Done! (v0.4.0)
-10. ~~Add Sprint collaboration for multi-agent teams.~~ Done! (v0.5.0)
-11. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
-12. Add HMAC signing for webhook payloads.
+8. ~~Add compliance verification to ensure agents do what they declared.~~ Done! (v0.4.0)
+9. ~~Add Sprint collaboration for multi-agent teams.~~ Done! (v0.5.0)
+10. Add symbol-level overlap detection (tree-sitter) once file-level is proving useful.
+11. Add HMAC signing for webhook payloads.
 
 ## Documentation
 
@@ -400,4 +390,3 @@ Created by **Tyler Casey**
 
 - X/Twitter: [x.com/TylerIsBuilding](https://x.com/TylerIsBuilding)
 - More projects: [tylerbuilds.com](https://tylerbuilds.com)
-

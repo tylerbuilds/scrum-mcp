@@ -186,6 +186,14 @@ export function FeedCard({ item, onTaskClick }: FeedCardProps) {
   const [expanded, setExpanded] = useState(false);
   const config = getTypeConfig(item.type);
   const Icon = config.icon;
+  const files = Array.isArray(item.metadata?.files) ? (item.metadata.files as string[]) : null;
+  const output = typeof item.metadata?.output === 'string' ? (item.metadata.output as string) : null;
+  const outputLength =
+    typeof item.metadata?.output_length === 'number'
+      ? (item.metadata.output_length as number)
+      : output?.length ?? 0;
+  const expiresAt =
+    typeof item.metadata?.expires_at === 'number' ? (item.metadata.expires_at as number) : null;
 
   return (
     <Card
@@ -240,27 +248,20 @@ export function FeedCard({ item, onTaskClick }: FeedCardProps) {
           </div>
         )}
 
-        {item.type === 'intent' && !!item.metadata.files && (
-          <FileList files={item.metadata.files as string[]} />
+        {item.type === 'intent' && files && <FileList files={files} />}
+
+        {item.type === 'evidence' && output && (
+          <EvidenceOutput output={output} outputLength={outputLength} />
         )}
 
-        {item.type === 'evidence' && !!item.metadata.output && (
-          <EvidenceOutput
-            output={item.metadata.output as string}
-            outputLength={item.metadata.output_length as number}
-          />
-        )}
-
-        {item.type === 'claim' && !!item.metadata.expires_at && (
+        {item.type === 'claim' && expiresAt !== null && (
           <div className="mt-2 flex items-center gap-2">
             <Lock className="w-3 h-3 text-orange-400" />
-            <ClaimTimer expiresAt={item.metadata.expires_at as number} />
+            <ClaimTimer expiresAt={expiresAt} />
           </div>
         )}
 
-        {item.type === 'claim' && !!item.metadata.files && (
-          <FileList files={item.metadata.files as string[]} />
-        )}
+        {item.type === 'claim' && files && <FileList files={files} />}
 
         {item.task_id && item.type !== 'task' && onTaskClick && (
           <button

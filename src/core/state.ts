@@ -74,7 +74,8 @@ import type {
   SprintShare,
   SprintContext,
   SprintStatus,
-  ShareType
+  ShareType,
+  ScrumEvent
 } from './types';
 
 // Domain repository imports
@@ -134,6 +135,8 @@ export class ScrumState {
   private readonly compliance: ComplianceRepository;
   private readonly sprints: SprintsRepository;
 
+  private onEvent?: (evt: ScrumEvent) => void;
+
   /**
    * Creates a new ScrumState instance.
    *
@@ -178,6 +181,24 @@ export class ScrumState {
       changelog: this.changelog,
       claims: this.claims
     });
+  }
+
+  /**
+   * Sets the event listener for real-time updates.
+   * @param cb Callback function to handle events
+   */
+  setEventListener(cb: (evt: ScrumEvent) => void): void {
+    this.onEvent = cb;
+  }
+
+  private emit(evt: ScrumEvent): void {
+    if (this.onEvent) {
+      try {
+        this.onEvent(evt);
+      } catch (err) {
+        this.log.error({ err, evt }, 'Failed to emit event');
+      }
+    }
   }
 
   // ==================== STATUS ====================
@@ -446,7 +467,9 @@ export class ScrumState {
     labels?: string[];
     storyPoints?: number;
   }): Task {
-    return this.tasks.createTask(title, description, options);
+    const task = this.tasks.createTask(title, description, options);
+    this.emit({ type: 'task.created', taskId: task.id, ts: Date.now() });
+    return task;
   }
 
   /**
@@ -527,7 +550,9 @@ export class ScrumState {
     enforceWipLimits?: boolean;
     enforceDependencies?: boolean;
   }): Task & { warnings?: string[] } {
-    return this.tasks.updateTask(taskId, updates, options);
+    const result = this.tasks.updateTask(taskId, updates, options);
+    this.emit({ type: 'task.updated', taskId: result.id, ts: Date.now() });
+    return result;
   }
 
   /**
@@ -568,7 +593,9 @@ export class ScrumState {
    * @throws {NotFoundError} If task does not exist
    */
   addComment(input: { taskId: string; agentId: string; content: string }): Comment {
-    return this.tasks.addComment(input);
+    const comment = this.tasks.addComment(input);
+    this.emit({ type: 'comment.added', commentId: comment.id, taskId: comment.taskId, ts: Date.now() });
+    return comment;
   }
 
   /**
@@ -626,7 +653,9 @@ export class ScrumState {
     blockingTaskId?: string;
     agentId: string;
   }): Blocker {
-    return this.tasks.addBlocker(input);
+    const blocker = this.tasks.addBlocker(input);
+    this.emit({ type: 'blocker.added', blockerId: blocker.id, taskId: blocker.taskId, ts: Date.now() });
+    return blocker;
   }
 
   /**
@@ -637,7 +666,9 @@ export class ScrumState {
    * @throws {NotFoundError} If blocker does not exist
    */
   resolveBlocker(blockerId: string): Blocker {
-    return this.tasks.resolveBlocker(blockerId);
+    const blocker = this.tasks.resolveBlocker(blockerId);
+    this.emit({ type: 'blocker.resolved', blockerId: blocker.id, taskId: blocker.taskId, ts: Date.now() });
+    return blocker;
   }
 
   /**
@@ -676,7 +707,9 @@ export class ScrumState {
    * @throws {ValidationError} If dependency would create a cycle
    */
   addDependency(taskId: string, dependsOnTaskId: string): TaskDependency {
-    return this.tasks.addDependency(taskId, dependsOnTaskId);
+    const dep = this.tasks.addDependency(taskId, dependsOnTaskId);
+    this.emit({ type: 'dependency.added', dependencyId: dep.id, taskId: dep.taskId, ts: Date.now() });
+    return dep;
   }
 
   /**
@@ -686,7 +719,11 @@ export class ScrumState {
    * @returns True if removed, false if not found
    */
   removeDependency(dependencyId: string): boolean {
-    return this.tasks.removeDependency(dependencyId);
+    const removed = this.tasks.removeDependency(dependencyId);
+    if (removed) {
+      this.emit({ type: 'dependency.removed', dependencyId, taskId: '', ts: Date.now() }); // taskId unknown here without lookup
+    }
+    return removed;
   }
 
   /**
@@ -946,7 +983,9 @@ export class ScrumState {
     boundaries?: string;
     acceptanceCriteria?: string;
   }): Intent {
-    return this.intents.postIntent(input);
+    const intent = this.intents.postIntent(input);
+    this.emit({ type: 'intent.posted', intentId: intent.id, taskId: intent.taskId, ts: Date.now() });
+    return intent;
   }
 
   /**
@@ -1009,7 +1048,25 @@ export class ScrumState {
    * ```
    */
   createClaim(agentId: string, files: string[], ttlSeconds: number): { claim: Claim; conflictsWith: string[] } {
-    return this.claims.createClaim(agentId, files, ttlSeconds);
+    const result = this.claims.createClaim(agentId, files, ttlSeconds);
+    if (result.conflictsWith.length > 0) {
+      this.emit({
+        type: 'claim.conflict',
+        agentId,
+        files,
+        conflictsWith: result.conflictsWith,
+        ts: Date.now()
+      });
+    } else {
+      this.emit({
+        type: 'claim.created',
+        agentId: result.claim.agentId,
+        files: result.claim.files,
+        expiresAt: result.claim.expiresAt,
+        ts: Date.now()
+      });
+    }
+    return result;
   }
 
   /**
@@ -1029,7 +1086,11 @@ export class ScrumState {
    * @returns Number of files released
    */
   releaseClaims(agentId: string, files?: string[]): number {
-    return this.claims.releaseClaims(agentId, files);
+    const releasedCount = this.claims.releaseClaims(agentId, files);
+    if (releasedCount > 0) {
+      this.emit({ type: 'claim.released', agentId, files: files ?? [], ts: Date.now() });
+    }
+    return releasedCount;
   }
 
   /**
@@ -1041,7 +1102,17 @@ export class ScrumState {
    * @returns Object with count of extended claims and new expiry time
    */
   extendClaims(agentId: string, additionalSeconds: number, files?: string[]): { extended: number; newExpiresAt: number } {
-    return this.claims.extendClaims(agentId, additionalSeconds, files);
+    const result = this.claims.extendClaims(agentId, additionalSeconds, files);
+    if (result.extended > 0) {
+      this.emit({
+        type: 'claim.extended',
+        agentId,
+        files: files ?? [],
+        expiresAt: result.newExpiresAt,
+        ts: Date.now()
+      });
+    }
+    return result;
   }
 
   /**
@@ -1081,7 +1152,9 @@ export class ScrumState {
    * ```
    */
   attachEvidence(input: { taskId: string; agentId: string; command: string; output: string }): Evidence {
-    return this.evidence.attachEvidence(input);
+    const evidence = this.evidence.attachEvidence(input);
+    this.emit({ type: 'evidence.attached', evidenceId: evidence.id, taskId: evidence.taskId, ts: Date.now() });
+    return evidence;
   }
 
   /**
@@ -1152,7 +1225,16 @@ export class ScrumState {
     diffSnippet?: string;
     commitHash?: string;
   }): ChangelogEntry {
-    return this.changelog.logChange(input);
+    const entry = this.changelog.logChange(input);
+    this.emit({
+      type: 'changelog.logged',
+      entryId: entry.id,
+      taskId: entry.taskId,
+      agentId: entry.agentId,
+      filePath: entry.filePath,
+      ts: entry.createdAt
+    });
+    return entry;
   }
 
   /**
@@ -1250,7 +1332,9 @@ export class ScrumState {
     output?: string;
     durationMs?: number;
   }): GateRun {
-    return this.gates.recordGateRun(input);
+    const run = this.gates.recordGateRun(input);
+    this.emit({ type: 'gate.run', gateId: run.gateId, taskId: run.taskId, passed: run.passed, ts: Date.now() });
+    return run;
   }
 
   /**
@@ -1434,7 +1518,9 @@ export class ScrumState {
     capabilities: string[];
     metadata?: Record<string, unknown>;
   }): Agent {
-    return this.agents.registerAgent(input);
+    const agent = this.agents.registerAgent(input);
+    this.emit({ type: 'agent.registered', agentId: agent.agentId, ts: Date.now() });
+    return agent;
   }
 
   /**
@@ -1458,7 +1544,11 @@ export class ScrumState {
    * @returns True if agent exists and was updated
    */
   agentHeartbeat(agentId: string): boolean {
-    return this.agents.agentHeartbeat(agentId);
+    const updated = this.agents.agentHeartbeat(agentId);
+    if (updated) {
+      this.emit({ type: 'agent.heartbeat', agentId, ts: Date.now() });
+    }
+    return updated;
   }
 
   // ==================== COMPLIANCE ====================

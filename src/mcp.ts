@@ -116,6 +116,37 @@ function sprintDisabledResponse() {
   };
 }
 
+function touchAgent(agentId: string, capabilities: string[] = []) {
+  const existingAgents = state.listAgents({ includeOffline: true });
+  const existing = existingAgents.find(agent => agent.agentId === agentId);
+
+  if (!existing) {
+    state.registerAgent({
+      agentId,
+      capabilities: capabilities.length > 0 ? capabilities : ['working'],
+      metadata: { autoRegistered: true, registeredAt: Date.now(), source: 'mcp' }
+    });
+    return;
+  }
+
+  if (capabilities.length === 0) {
+    state.agentHeartbeat(agentId);
+    return;
+  }
+
+  const merged = Array.from(new Set([...existing.capabilities, ...capabilities]));
+  if (merged.length === existing.capabilities.length) {
+    state.agentHeartbeat(agentId);
+    return;
+  }
+
+  state.registerAgent({
+    agentId,
+    capabilities: merged,
+    metadata: existing.metadata ?? {}
+  });
+}
+
 const server = new Server(
   {
     name: 'scrum',
@@ -640,7 +671,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'scrum_finish_work',
-        description: 'Finish work in ONE call. Does: evidence_attach → compliance_check → claim_release. Use instead of calling these tools separately. Saves ~100 tokens. Fails if compliance check fails.',
+        description: 'Finish work in ONE call. Does: evidence_attach → compliance_check → claim_release → marks task as done. Use instead of calling these tools separately. Saves ~100 tokens. Fails if compliance check fails.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -820,6 +851,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_intent_post': {
         const input = IntentPostSchema.parse(args);
+        touchAgent(input.agentId, input.files);
         const intent = state.postIntent(input);
         return {
           content: [{ type: 'text', text: JSON.stringify(intent, null, 2) }]
@@ -828,6 +860,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_claim': {
         const input = ClaimCreateMcpSchema.parse(args);
+        touchAgent(input.agentId, input.files);
 
         // ENFORCEMENT: Must have declared intent for these files first
         const intentCheck = state.hasIntentForFiles(input.agentId, input.files);
@@ -884,6 +917,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_claim_release': {
         const input = ClaimReleaseSchema.parse(args);
+        touchAgent(input.agentId);
 
         // ENFORCEMENT: Must have attached evidence before releasing claims
         const activeClaims = state.getAgentClaims(input.agentId);
@@ -970,6 +1004,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_claim_extend': {
         const input = ClaimExtendSchema.parse(args);
+        touchAgent(input.agentId, input.files ?? []);
         const result = state.extendClaims(input.agentId, input.additionalSeconds ?? 300, input.files);
         if (result.extended === 0) {
           return {
@@ -998,6 +1033,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_evidence_attach': {
         const input = EvidenceAttachSchema.parse(args);
+        touchAgent(input.agentId, ['evidence']);
         const evidence = state.attachEvidence(input);
         return {
           content: [{ type: 'text', text: JSON.stringify(evidence, null, 2) }]
@@ -1035,6 +1071,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_changelog_log': {
         const input = ChangelogLogSchema.parse(args);
+        touchAgent(input.agentId, ['changelog']);
         const entry = state.logChange(input);
         return {
           content: [
@@ -1141,6 +1178,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_comment_add': {
         const input = CommentAddSchema.parse(args);
+        touchAgent(input.agentId, ['comment']);
         try {
           const comment = state.addComment(input);
           return {
@@ -1182,6 +1220,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
         if (input.action === 'add') {
           try {
+            touchAgent(input.agentId!, ['blocker']);
             const blocker = state.addBlocker({
               taskId: input.taskId!,
               description: input.description!,
@@ -1385,6 +1424,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_compliance_check': {
         const input = ComplianceCheckSchema.parse(args);
+        touchAgent(input.agentId, ['compliance']);
 
         // Verify task exists
         const task = state.getTask(input.taskId);
@@ -1536,6 +1576,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scrum_sprint_join': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
         const input = SprintJoinSchema.parse(args);
+        touchAgent(input.agentId, ['sprint']);
 
         // Verify sprint exists
         const sprint = state.getSprint(input.sprintId);
@@ -1570,6 +1611,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scrum_sprint_leave': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
         const input = SprintLeaveSchema.parse(args);
+        touchAgent(input.agentId, ['sprint']);
         const left = state.leaveSprint(input.sprintId, input.agentId);
         return {
           content: [{
@@ -1612,6 +1654,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scrum_sprint_share': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
         const input = SprintShareSchema.parse(args);
+        touchAgent(input.agentId, ['sprint']);
 
         // Verify sprint exists
         const sprint = state.getSprint(input.sprintId);
@@ -1667,6 +1710,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'scrum_sprint_context': {
         if (!cfg.SCRUM_SPRINT_ENABLED) return sprintDisabledResponse();
         const input = SprintContextUnifiedSchema.parse(args);
+        if (input.agentId) {
+          touchAgent(input.agentId, ['sprint']);
+        }
 
         const context = state.getSprintContext(input.sprintId);
         if (!context) {
@@ -1807,6 +1853,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_start_work': {
         const input = StartWorkSchema.parse(args);
+        touchAgent(input.agentId, input.files);
 
         // Step 1: Check for overlaps (same logic as scrum_overlap_check)
         const existingClaims = state.listActiveClaims();
@@ -1871,6 +1918,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_finish_work': {
         const input = FinishWorkSchema.parse(args);
+        touchAgent(input.agentId, ['evidence']);
 
         // Step 1: Attach evidence
         const evidence = state.attachEvidence({
@@ -1922,6 +1970,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         // Step 3: Release claims
         const released = state.releaseClaims(input.agentId, input.files);
 
+        // Step 4: Mark task as done (if this was the last agent)
+        const task = state.getTask(input.taskId);
+        if (task && task.status !== 'done') {
+          // Check if this is the only agent working on the task
+          const agents = state.getTaskAgents(input.taskId);
+          if (agents.length <= 1) {
+            state.updateTask(input.taskId, { status: 'done' });
+          }
+        }
+
         return {
           content: [{
             type: 'text',
@@ -1945,6 +2003,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_orchestrate_start': {
         const input = OrchestrateStartSchema.parse(args);
+        touchAgent(input.orchestratorId, ['orchestrator']);
 
         // Step 1: Create sprint for the task
         const sprint = state.createSprint({
@@ -1965,6 +2024,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           // Generate agentId from orchestrator ID + focus + sequence
           const baseId = input.orchestratorId.replace(/^[^-]+-/, '').split('-')[0] || 'main';
           const agentId = `${baseId}-${worker.focus}-${index + 1}`;
+          touchAgent(agentId, worker.files);
 
           return {
             agentId,
@@ -2029,6 +2089,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'scrum_worker_complete': {
         const input = WorkerCompleteSchema.parse(args);
+        touchAgent(input.agentId, ['sprint']);
 
         // Step 1: Share completion status
         const share = state.shareWithSprint({
