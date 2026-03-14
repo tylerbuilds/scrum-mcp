@@ -5,6 +5,51 @@ All notable changes to SCRUM MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-03-14
+
+### Added
+
+- **`paperclip-inbox-inject.timer`** — systemd timer runs inbox pre-processor every 9 minutes to keep agent context fresh between heartbeat cycles
+- **Auto-unblock script** for sequential workflow dependencies — automatically progresses blocked issues when predecessor tasks complete
+
+### Fixed
+
+- **OpenClaw gateway 2026.3.13 scope enforcement** — patched `authorizeGatewayMethod` and `AgentParamsSchema` for backward compatibility with `operator.write` scope
+- **Socrates quality auditor** now queries company-wide `in_review` items instead of only own assignments, enabling proper cross-agent auditing
+
+### Changed
+
+- **Quality gate pipeline enforced** — agents set status to `in_review` (never `done`), Socrates audits and approves/rejects before work is marked complete
+
+---
+
+## [0.6.0] - 2026-03-10
+
+### Added
+
+**Paperclip Integration**
+
+Bridges SCRUM MCP coordination to Paperclip's autonomous agent platform, enabling receipt-based accountability for AI agents that operate on heartbeat cycles.
+
+- **`paperclip-adapter`** module — bridges SCRUM MCP coordination primitives (intents, claims, evidence) to Paperclip's heartbeat system
+- **Inbox pre-processor** (`scripts/inject-inbox.py`) — materializes agent inboxes into heartbeat prompts for agents that lack direct tool access (e.g., agents routed through chat gateways without API calling ability)
+- **Agent prompt templates** with embedded heartbeat protocol — agents receive role-specific instructions + their issue queue in every heartbeat cycle
+- **Sequential issue unblocking** — automatic status progression when predecessor tasks complete, removing manual dependency management
+- **Ghost CMS Admin API integration guide** for content management agents (Muse, content pipeline)
+- **Mandatory delegation rules** — configurable routing that forces specific skills to be handled by specialist agents (e.g., security audits always routed to Aegis)
+
+### Changed
+
+- Evidence receipt format now includes Paperclip issue IDs for cross-referencing between SCRUM MCP tasks and Paperclip issues
+- Documentation updated with Paperclip integration guide (new page on marketing site)
+
+### Performance
+
+- Agent productivity improved from ~2.8KB/15s (empty pings) to 175KB/186s (real work output) per heartbeat cycle
+- 12 issues completed in first 2 hours after integration activation (was 0 per cycle before)
+
+---
+
 ## [0.5.0] - 2026-01-16
 
 ### Added
@@ -194,6 +239,24 @@ Initial release with core coordination features:
 ---
 
 ## Migration Notes
+
+### 0.5.0 → 0.6.0
+
+No breaking changes to existing SCRUM MCP tools. The Paperclip adapter is additive.
+
+To use the inbox pre-processor:
+```bash
+python3 scripts/inject-inbox.py
+```
+
+To enable the systemd timer (v0.6.1):
+```bash
+systemctl --user enable --now paperclip-inbox-inject.timer
+```
+
+### 0.6.0 → 0.6.1
+
+No breaking changes. Stability fixes and automation additions.
 
 ### 0.4.0 → 0.5.0
 

@@ -56,6 +56,7 @@
           <a href="#hooks">Git Hooks</a>
           <a href="/prompts.html">Prompts</a>
           <a href="/case-study.html">Case Study</a>
+          <a href="#enterprise">Enterprise</a>
           <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a>
         </nav>
         <div class="nav-actions">
@@ -80,8 +81,8 @@
             evidence, and stream realtime signals without phoning home.
           </p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-              Download v0.5.2
+            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.6.1.zip">
+              Download v0.6.1
             </a>
             <a class="btn btn-ghost" href="#start">
               Get started
@@ -144,7 +145,7 @@
     <section class="section section-new">
       <div class="container">
         <div class="section-head" data-reveal>
-          <p class="eyebrow eyebrow-new">New in v0.5.2</p>
+          <p class="eyebrow eyebrow-new">New in v0.6.1</p>
           <h2>~50% fewer tokens per task.</h2>
           <p>
             Convenience tools combine common workflows into single calls.
@@ -189,8 +190,8 @@
             <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
               Clone the repo
             </a>
-            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-              Download ZIP v0.5.2
+            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.6.1.zip">
+              Download ZIP v0.6.1
             </a>
           </div>
           <div class="start-notes">
@@ -296,6 +297,104 @@ npm run cli -- task create --title "First task"</code></pre>
               without consent. MIT licensed.
             </p>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="enterprise" class="section section-enterprise">
+      <div class="container">
+        <div class="section-head" data-reveal>
+          <p class="eyebrow eyebrow-enterprise">Enterprise: Autonomous Agency</p>
+          <h2>From zero heartbeats to 12 completions in 2 hours.</h2>
+          <p>
+            Morpheos is a fully autonomous digital agency: 7 AI agents managing
+            4 web properties on 10-minute heartbeat cycles. When free-tier models
+            can't call APIs or access tools, SCRUM MCP bridges the gap.
+          </p>
+        </div>
+
+        <div class="enterprise-problem-solution" data-reveal>
+          <div class="enterprise-card enterprise-problem">
+            <h3>The Problem</h3>
+            <p>
+              Agents running on free models lack tool access. They can't call APIs,
+              read databases, or act on task queues. Every heartbeat cycle produced
+              empty output &mdash; 2.8KB of boilerplate, zero completions.
+            </p>
+            <div class="enterprise-metric enterprise-metric-before">
+              <span class="enterprise-metric-value">2.8KB</span>
+              <span class="enterprise-metric-label">Output per cycle (before)</span>
+            </div>
+          </div>
+          <div class="enterprise-card enterprise-solution">
+            <h3>The Solution</h3>
+            <p>
+              SCRUM MCP's inbox pre-processor materialises task queues directly into
+              agent prompts. No tool calls needed. The agent sees its work queue,
+              priorities, and context as part of the prompt itself.
+            </p>
+            <div class="enterprise-metric enterprise-metric-after">
+              <span class="enterprise-metric-value">175KB</span>
+              <span class="enterprise-metric-label">Output per cycle (after)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="enterprise-architecture" data-reveal>
+          <div class="code-card">
+            <div class="code-title">Architecture</div>
+            <pre><code>                     Paperclip + SCRUM MCP
+                     =====================
+
+  +--------------+     +---------------------+     +----------------+
+  | Paperclip DB | --> | SCRUM Inbox Injector | --> | Agent Prompts  |
+  |              |     |                      |     |                |
+  | - Issues     |     | - Materialises tasks |     | - Full context |
+  | - Priorities |     | - Injects context    |     | - Ready to act |
+  | - History    |     | - Zero tool calls    |     | - Real work    |
+  +--------------+     +---------------------+     +----------------+
+                                                          |
+                                                          v
+                                                   +----------------+
+                                                   | 12 completions |
+                                                   | in 2 hours     |
+                                                   +----------------+</code></pre>
+          </div>
+        </div>
+
+        <div class="enterprise-results" data-reveal>
+          <div class="enterprise-stat">
+            <span class="enterprise-stat-value">0 &rarr; 12</span>
+            <span class="enterprise-stat-label">Issue completions per session</span>
+          </div>
+          <div class="enterprise-stat">
+            <span class="enterprise-stat-value">62x</span>
+            <span class="enterprise-stat-label">Output increase (2.8KB &rarr; 175KB)</span>
+          </div>
+          <div class="enterprise-stat">
+            <span class="enterprise-stat-value">7</span>
+            <span class="enterprise-stat-label">Autonomous agents coordinated</span>
+          </div>
+          <div class="enterprise-stat">
+            <span class="enterprise-stat-value">10 min</span>
+            <span class="enterprise-stat-label">Heartbeat cycle interval</span>
+          </div>
+        </div>
+
+        <div class="enterprise-cta" data-reveal>
+          <p>
+            SCRUM MCP predates Paperclip. When the creator adopted Paperclip to run
+            Morpheos, SCRUM was the natural fit for making agents show receipts and
+            coordinate real work across a 7-agent fleet.
+          </p>
+          <div class="mini-cta">
+            <a class="btn btn-primary" href="/paperclip-integration.html">
+              Read the integration guide
+            </a>
+            <a class="btn btn-ghost" href="/case-study.html">
+              Full case study
+            </a>
+          </div>
         </div>
       </div>
     </section>
@@ -470,8 +569,8 @@ git commit -m "Add feature"
           </p>
         </div>
         <div class="cta-actions">
-          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-            Download v0.5.2
+          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.6.1.zip">
+            Download v0.6.1
           </a>
           <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
             GitHub repo
@@ -492,6 +591,7 @@ git commit -m "Add feature"
         <a href="/what-is-mcp.html">What is MCP?</a>
         <a href="/prompts.html">Prompts</a>
         <a href="/case-study.html">Case Study</a>
+        <a href="/paperclip-integration.html">Paperclip</a>
         <a href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
       <div class="footer-meta">
