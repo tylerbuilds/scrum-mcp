@@ -1,7 +1,47 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { Agent, AgentStatus } from '../types.js';
+import type { Agent, AgentRole, AgentStatus } from '../types.js';
 import { type BaseRepository, now } from './base.js';
+
+export const ROLE_TOOL_DEFAULTS: Record<AgentRole, string[]> = {
+  admin: ['*'],
+  lead: [
+    'scrum_status', 'scrum_task_create', 'scrum_task_get', 'scrum_task_list',
+    'scrum_task_update', 'scrum_task_complete', 'scrum_intent_post', 'scrum_claim',
+    'scrum_claim_release', 'scrum_claim_extend', 'scrum_claims_list',
+    'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board',
+    'scrum_compliance_check', 'scrum_context', 'scrum_start_work', 'scrum_finish_work',
+    'scrum_changelog_log', 'scrum_changelog_search', 'scrum_comment_add',
+    'scrum_comments_list', 'scrum_blocker', 'scrum_dependency', 'scrum_metrics',
+    'scrum_dead_work', 'scrum_agent_set_role', 'scrum_agent_permissions',
+    'scrum_sprint_create', 'scrum_sprint_get', 'scrum_sprint_list',
+    'scrum_sprint_complete', 'scrum_sprint_join', 'scrum_sprint_leave',
+    'scrum_sprint_members', 'scrum_sprint_share', 'scrum_sprint_shares',
+    'scrum_sprint_context', 'scrum_orchestrate_start', 'scrum_worker_complete',
+    'scrum_orchestrate_status'
+  ],
+  developer: [
+    'scrum_status', 'scrum_task_create', 'scrum_task_get', 'scrum_task_list',
+    'scrum_task_update', 'scrum_task_complete', 'scrum_intent_post', 'scrum_claim',
+    'scrum_claim_release', 'scrum_claim_extend', 'scrum_claims_list',
+    'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board',
+    'scrum_compliance_check', 'scrum_context', 'scrum_start_work', 'scrum_finish_work',
+    'scrum_changelog_log', 'scrum_changelog_search', 'scrum_comment_add',
+    'scrum_comments_list', 'scrum_blocker', 'scrum_dependency', 'scrum_metrics',
+    'scrum_dead_work'
+  ],
+  reviewer: [
+    'scrum_status', 'scrum_task_get', 'scrum_task_list', 'scrum_board',
+    'scrum_compliance_check', 'scrum_context', 'scrum_claims_list',
+    'scrum_comment_add', 'scrum_comments_list', 'scrum_evidence_attach',
+    'scrum_changelog_search', 'scrum_blocker', 'scrum_metrics', 'scrum_dead_work'
+  ],
+  observer: [
+    'scrum_status', 'scrum_task_get', 'scrum_task_list', 'scrum_board',
+    'scrum_context', 'scrum_claims_list', 'scrum_comments_list',
+    'scrum_changelog_search', 'scrum_metrics', 'scrum_dead_work'
+  ]
+};
 
 /**
  * Agents Repository - handles agent registration, heartbeats, and capabilities
@@ -18,6 +58,7 @@ export class AgentsRepository implements BaseRepository {
     agentId: string;
     capabilities: string[];
     metadata?: Record<string, unknown>;
+    role?: AgentRole;
   }): Agent {
     const t = now();
     const agent: Agent = {
@@ -26,7 +67,8 @@ export class AgentsRepository implements BaseRepository {
       metadata: input.metadata,
       lastHeartbeat: t,
       registeredAt: t,
-      status: 'active'
+      status: 'active',
+      role: input.role ?? 'developer'
     };
 
     // Check if agent already exists
@@ -102,6 +144,8 @@ export class AgentsRepository implements BaseRepository {
       last_heartbeat: number;
       registered_at: number;
       status: string;
+      role: string | null;
+      allowed_tools_json: string | null;
     }>;
 
     return rows.map(r => ({
@@ -110,7 +154,9 @@ export class AgentsRepository implements BaseRepository {
       metadata: r.metadata_json ? JSON.parse(r.metadata_json) : undefined,
       lastHeartbeat: r.last_heartbeat,
       registeredAt: r.registered_at,
-      status: r.status as AgentStatus
+      status: r.status as AgentStatus,
+      role: (r.role as AgentRole) ?? 'developer',
+      allowedTools: r.allowed_tools_json ? JSON.parse(r.allowed_tools_json) : undefined
     }));
   }
 
@@ -131,6 +177,8 @@ export class AgentsRepository implements BaseRepository {
         last_heartbeat: number;
         registered_at: number;
         status: string;
+        role: string | null;
+        allowed_tools_json: string | null;
       } | undefined;
 
     if (!row) return null;
@@ -141,8 +189,40 @@ export class AgentsRepository implements BaseRepository {
       metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
       lastHeartbeat: row.last_heartbeat,
       registeredAt: row.registered_at,
-      status: row.status as AgentStatus
+      status: row.status as AgentStatus,
+      role: (row.role as AgentRole) ?? 'developer',
+      allowedTools: row.allowed_tools_json ? JSON.parse(row.allowed_tools_json) : undefined
     };
+  }
+
+  // ==================== RBAC ====================
+
+  setAgentRole(agentId: string, role: AgentRole): Agent | null {
+    const info = this.db.prepare('UPDATE agents SET role = ? WHERE agent_id = ?').run(role, agentId);
+    if (info.changes === 0) return null;
+    return this.getAgent(agentId);
+  }
+
+  setAllowedTools(agentId: string, tools: string[] | null): Agent | null {
+    const json = tools ? JSON.stringify(tools) : null;
+    const info = this.db.prepare('UPDATE agents SET allowed_tools_json = ? WHERE agent_id = ?').run(json, agentId);
+    if (info.changes === 0) return null;
+    return this.getAgent(agentId);
+  }
+
+  getAgentPermissions(agentId: string): { role: AgentRole; allowedTools: string[]; isCustom: boolean } | null {
+    const agent = this.getAgent(agentId);
+    if (!agent) return null;
+    const isCustom = !!agent.allowedTools;
+    const allowedTools = agent.allowedTools ?? ROLE_TOOL_DEFAULTS[agent.role] ?? ROLE_TOOL_DEFAULTS['developer'];
+    return { role: agent.role, allowedTools, isCustom };
+  }
+
+  isToolAllowed(agentId: string, toolName: string): boolean {
+    const perms = this.getAgentPermissions(agentId);
+    if (!perms) return true; // Unknown agent = allow (they'll be auto-registered as developer)
+    if (perms.allowedTools.includes('*')) return true;
+    return perms.allowedTools.includes(toolName);
   }
 
   /**

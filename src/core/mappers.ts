@@ -21,6 +21,7 @@
  */
 import type {
   Agent,
+  AgentRole,
   AgentStatus,
   Blocker,
   ChangelogEntry,
@@ -196,6 +197,8 @@ export interface AgentRow {
   last_heartbeat: number;
   registered_at: number;
   status: string;
+  role: string | null;
+  allowed_tools_json: string | null;
 }
 
 /**
@@ -564,7 +567,9 @@ export function mapRowToAgent(row: AgentRow): Agent {
     metadata: row.metadata_json ? JSON.parse(row.metadata_json) : undefined,
     lastHeartbeat: row.last_heartbeat,
     registeredAt: row.registered_at,
-    status: row.status as AgentStatus
+    status: row.status as AgentStatus,
+    role: (row.role as AgentRole) ?? 'developer',
+    allowedTools: row.allowed_tools_json ? JSON.parse(row.allowed_tools_json) : undefined
   };
 }
 

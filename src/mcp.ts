@@ -54,7 +54,10 @@ import {
   // Orchestration schemas (v0.5.2)
   OrchestrateStartSchema,
   WorkerCompleteSchema,
-  OrchestrateStatusSchema
+  OrchestrateStatusSchema,
+  // RBAC schemas
+  AgentSetRoleSchema,
+  AgentPermissionsSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -738,6 +741,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['sprintId']
         }
+      },
+      // ==================== RBAC TOOLS ====================
+      {
+        name: 'scrum_agent_set_role',
+        description: 'Set an agent\'s role for RBAC. Roles: admin (all tools), lead (all + management), developer (standard workflow), reviewer (read + review), observer (read-only). Only admin/lead agents can change roles.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'The agent whose role to set' },
+            role: { type: 'string', enum: ['admin', 'lead', 'developer', 'reviewer', 'observer'], description: 'The role to assign' },
+            callerAgentId: { type: 'string', description: 'Your agent ID (must be admin or lead)' }
+          },
+          required: ['agentId', 'role', 'callerAgentId']
+        }
+      },
+      {
+        name: 'scrum_agent_permissions',
+        description: 'View an agent\'s effective permissions: their role, allowed tools list, and whether custom overrides are active.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'The agent to check permissions for' }
+          },
+          required: ['agentId']
+        }
       }
     ]
   };
@@ -748,6 +776,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
+    // ==================== RBAC PERMISSION GUARD ====================
+    if (name !== 'scrum_status') {
+      const rbacAgentId = (args as Record<string, unknown> | undefined)?.agentId as string | undefined;
+      if (rbacAgentId && typeof rbacAgentId === 'string') {
+        if (!state.isToolAllowed(rbacAgentId, name)) {
+          const perms = state.getAgentPermissions(rbacAgentId);
+          const role = perms?.role ?? 'developer';
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `RBAC_DENIED: Agent '${rbacAgentId}' with role '${role}' is not allowed to use tool '${name}'. Use scrum_agent_permissions to check your allowed tools.` }) }]
+          };
+        }
+      }
+    }
+
     switch (name) {
       case 'scrum_status': {
         const input = StatusSchema.parse(args ?? {});
@@ -2218,6 +2260,53 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 : `${activeWorkers.length} workers still active.`
             }, null, 2)
           }]
+        };
+      }
+
+      // ==================== RBAC TOOLS ====================
+
+      case 'scrum_agent_set_role': {
+        const input = AgentSetRoleSchema.parse({ agentId: (args as any).agentId, role: (args as any).role });
+        const callerAgentId = (args as any).callerAgentId as string;
+        if (!callerAgentId) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: 'callerAgentId is required' }) }],
+            isError: true
+          };
+        }
+
+        // Check caller is admin or lead
+        const callerPerms = state.getAgentPermissions(callerAgentId);
+        if (callerPerms && callerPerms.role !== 'admin' && callerPerms.role !== 'lead') {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: `RBAC_DENIED: Only admin or lead agents can change roles. Agent '${callerAgentId}' has role '${callerPerms.role}'.` }) }]
+          };
+        }
+
+        touchAgent(callerAgentId, ['rbac']);
+        const result = state.setAgentRole(input.agentId, input.role);
+        if (!result) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: `Agent not found: ${input.agentId}` }) }],
+            isError: true
+          };
+        }
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
+        };
+      }
+
+      case 'scrum_agent_permissions': {
+        const input = AgentPermissionsSchema.parse(args);
+        const result = state.getAgentPermissions(input.agentId);
+        if (!result) {
+          return {
+            content: [{ type: 'text', text: JSON.stringify({ error: `Agent not found: ${input.agentId}` }) }],
+            isError: true
+          };
+        }
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
         };
       }
 

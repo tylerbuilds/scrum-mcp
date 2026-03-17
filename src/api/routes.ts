@@ -67,7 +67,9 @@ import {
   SprintJoinRestSchema,
   SprintLeaveRestSchema,
   SprintShareRestSchema,
-  SprintSharesQuerySchema
+  SprintSharesQuerySchema,
+  // RBAC schemas
+  AgentSetRoleSchema
 } from './schemas.js';
 import type { ScrumState } from '../core/state.js';
 import type { ScrumConfig } from '../core/config.js';
@@ -1115,6 +1117,28 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
     const questions = state.getUnansweredQuestions(paramsParsed.data.sprintId);
     return ok({ count: questions.length, questions });
+  });
+
+  // ==================== RBAC ENDPOINTS ====================
+
+  app.patch('/api/agents/:agentId/role', async (req, reply) => {
+    const params = z.object({ agentId: z.string() }).safeParse(req.params);
+    if (!params.success) return reply.status(400).send(bad(params.error.message));
+    const body = AgentSetRoleSchema.pick({ role: true }).safeParse(req.body);
+    if (!body.success) return reply.status(400).send(bad(body.error.message));
+
+    const result = state.setAgentRole(params.data.agentId, body.data.role);
+    if (!result) return reply.status(404).send(bad('Agent not found'));
+    return ok(result);
+  });
+
+  app.get('/api/agents/:agentId/permissions', async (req, reply) => {
+    const params = z.object({ agentId: z.string() }).safeParse(req.params);
+    if (!params.success) return reply.status(400).send(bad(params.error.message));
+
+    const result = state.getAgentPermissions(params.data.agentId);
+    if (!result) return reply.status(404).send(bad('Agent not found'));
+    return ok(result);
   });
 
   // ==================== AUTH MIDDLEWARE ====================

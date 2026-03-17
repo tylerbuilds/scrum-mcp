@@ -200,6 +200,8 @@ export interface Agent {
   lastHeartbeat: number;
   registeredAt: number;
   status: AgentStatus;
+  role: AgentRole;
+  allowedTools?: string[];
 }
 
 // ==================== DEAD WORK DETECTION ====================
@@ -394,3 +396,6 @@ export interface SprintContext {
   allFiles: string[];         // All files being touched by any member
   allBoundaries: string[];    // All boundaries declared by any member
 }
+
+// ==================== RBAC ====================
+export type AgentRole = 'admin' | 'lead' | 'developer' | 'reviewer' | 'observer';

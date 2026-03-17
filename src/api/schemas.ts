@@ -923,3 +923,15 @@ export const OrchestrateStatusSchema = z.object({
   sprintId: z.string().min(1)
 });
 export type OrchestrateStatusInput = z.infer<typeof OrchestrateStatusSchema>;
+
+// ==================== RBAC ====================
+export const AgentRoleEnum = z.enum(['admin', 'lead', 'developer', 'reviewer', 'observer']);
+
+export const AgentSetRoleSchema = z.object({
+  agentId: z.string().min(1).max(120),
+  role: AgentRoleEnum
+});
+
+export const AgentPermissionsSchema = z.object({
+  agentId: z.string().min(1).max(120)
+});

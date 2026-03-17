@@ -41,6 +41,7 @@ import type { Logger } from 'pino';
 import type { ScrumDb } from '../infra/db';
 import type {
   Agent,
+  AgentRole,
   AgentStatus,
   AgingWipTask,
   Blocker,
@@ -1549,6 +1550,20 @@ export class ScrumState {
       this.emit({ type: 'agent.heartbeat', agentId, ts: Date.now() });
     }
     return updated;
+  }
+
+  // ==================== RBAC ====================
+
+  setAgentRole(agentId: string, role: AgentRole): Agent | null {
+    return this.agents.setAgentRole(agentId, role);
+  }
+
+  getAgentPermissions(agentId: string): { role: AgentRole; allowedTools: string[]; isCustom: boolean } | null {
+    return this.agents.getAgentPermissions(agentId);
+  }
+
+  isToolAllowed(agentId: string, toolName: string): boolean {
+    return this.agents.isToolAllowed(agentId, toolName);
   }
 
   // ==================== COMPLIANCE ====================

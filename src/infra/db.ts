@@ -223,6 +223,9 @@ function migrate(db: ScrumDb) {
 
   // Sprint tables for collaborative multi-agent work
   migrateSprintTables(db);
+
+  // RBAC columns on agents table
+  migrateRbacColumns(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -326,5 +329,21 @@ function migrateSprintTables(db: ScrumDb) {
   if (!intentCols.has('sprint_id')) {
     db.exec(`ALTER TABLE intents ADD COLUMN sprint_id TEXT REFERENCES sprints(id) ON DELETE SET NULL`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_intents_sprint_id ON intents(sprint_id)`);
+  }
+}
+
+function migrateRbacColumns(db: ScrumDb) {
+  const tableInfo = db.prepare("PRAGMA table_info(agents)").all() as Array<{ name: string }>;
+  const existingColumns = new Set(tableInfo.map(col => col.name));
+
+  const columnsToAdd: Array<{ name: string; definition: string }> = [
+    { name: 'role', definition: "TEXT DEFAULT 'developer'" },
+    { name: 'allowed_tools_json', definition: 'TEXT' }
+  ];
+
+  for (const col of columnsToAdd) {
+    if (!existingColumns.has(col.name)) {
+      db.exec(`ALTER TABLE agents ADD COLUMN ${col.name} ${col.definition}`);
+    }
   }
 }
