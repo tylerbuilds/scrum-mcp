@@ -60,6 +60,13 @@ import {
   // Compliance schemas
   ComplianceTaskParamsSchema,
   ComplianceAgentParamsSchema,
+  // Knowledge base schemas
+  KnowledgeAddSchema,
+  KnowledgeUpdateSchema,
+  KnowledgePromoteSchema,
+  KnowledgeListQuerySchema,
+  KnowledgeSearchQuerySchema,
+  KnowledgeIdParamsSchema,
   // Sprint schemas
   SprintCreateSchema,
   SprintIdParamsSchema,
@@ -1115,6 +1122,91 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
 
     const questions = state.getUnansweredQuestions(paramsParsed.data.sprintId);
     return ok({ count: questions.length, questions });
+  });
+
+  // ==================== KNOWLEDGE BASE ====================
+
+  // Create knowledge entry
+  app.post('/api/knowledge', async (req, reply) => {
+    const parsed = KnowledgeAddSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    const entry = state.addKnowledge(parsed.data);
+    return reply.status(201).send(ok(entry));
+  });
+
+  // List knowledge entries
+  app.get('/api/knowledge', async (req, reply) => {
+    const parsed = KnowledgeListQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    const entries = state.listKnowledge(parsed.data);
+    return ok({ count: entries.length, entries });
+  });
+
+  // Search knowledge
+  app.get('/api/knowledge/search', async (req, reply) => {
+    const parsed = KnowledgeSearchQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    const results = state.searchKnowledge(parsed.data.q, {
+      category: parsed.data.category,
+      limit: parsed.data.limit,
+      includeArchived: parsed.data.includeArchived
+    });
+    return ok({ query: parsed.data.q, count: results.length, results });
+  });
+
+  // Get single knowledge entry
+  app.get('/api/knowledge/:id', async (req, reply) => {
+    const paramsParsed = KnowledgeIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const entry = state.getKnowledge(paramsParsed.data.id);
+    if (!entry) return reply.status(404).send(bad('Knowledge entry not found'));
+
+    return ok(entry);
+  });
+
+  // Update knowledge entry
+  app.patch('/api/knowledge/:id', async (req, reply) => {
+    const paramsParsed = KnowledgeIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const bodyParsed = KnowledgeUpdateSchema.safeParse(req.body);
+    if (!bodyParsed.success) return reply.status(400).send(bad(bodyParsed.error.message));
+
+    const entry = state.updateKnowledge(paramsParsed.data.id, bodyParsed.data);
+    if (!entry) return reply.status(404).send(bad('Knowledge entry not found'));
+
+    return ok(entry);
+  });
+
+  // Archive (soft delete) knowledge entry
+  app.delete('/api/knowledge/:id', async (req, reply) => {
+    const paramsParsed = KnowledgeIdParamsSchema.safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const archived = state.archiveKnowledge(paramsParsed.data.id);
+    if (!archived) return reply.status(404).send(bad('Knowledge entry not found or already archived'));
+
+    return ok({ status: 'archived' });
+  });
+
+  // Promote sprint share to knowledge
+  app.post('/api/knowledge/promote', async (req, reply) => {
+    const parsed = KnowledgePromoteSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+
+    const entry = state.promoteSprintShare(parsed.data.shareId, {
+      category: parsed.data.category,
+      tags: parsed.data.tags,
+      createdBy: parsed.data.createdBy
+    });
+
+    if (!entry) return reply.status(404).send(bad('Sprint share not found'));
+
+    return reply.status(201).send(ok(entry));
   });
 
   // ==================== AUTH MIDDLEWARE ====================

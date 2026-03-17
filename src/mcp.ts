@@ -54,7 +54,11 @@ import {
   // Orchestration schemas (v0.5.2)
   OrchestrateStartSchema,
   WorkerCompleteSchema,
-  OrchestrateStatusSchema
+  OrchestrateStatusSchema,
+  // Knowledge base schemas
+  KnowledgeAddSchema,
+  KnowledgeSearchSchema,
+  KnowledgePromoteSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -738,6 +742,51 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ['sprintId']
         }
+      },
+      // ==================== KNOWLEDGE BASE TOOLS ====================
+      {
+        name: 'scrum_knowledge_add',
+        description: 'Add a knowledge entry to the persistent knowledge base. Survives across sprints. Categories: lesson (what you learned), sop (standard procedure), architecture (design decisions/structure), pitfall (common mistake/gotcha), decision (key decision and rationale).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Short title for the knowledge entry' },
+            content: { type: 'string', description: 'Full content/explanation' },
+            category: { type: 'string', enum: ['lesson', 'sop', 'architecture', 'pitfall', 'decision'], description: 'Category (default: lesson)' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Tags for organization and search' },
+            sourceTaskId: { type: 'string', description: 'Task this knowledge came from (optional)' },
+            createdBy: { type: 'string', description: 'Your agent ID' }
+          },
+          required: ['title', 'content', 'createdBy']
+        }
+      },
+      {
+        name: 'scrum_knowledge_search',
+        description: 'Search the knowledge base using full-text search. Find lessons, SOPs, architecture notes, pitfalls, and decisions from past work. Always search before starting new work to avoid repeating mistakes.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            query: { type: 'string', description: 'Search query (full-text search)' },
+            category: { type: 'string', enum: ['lesson', 'sop', 'architecture', 'pitfall', 'decision'], description: 'Filter by category' },
+            limit: { type: 'number', description: 'Max results (default 20)' },
+            includeArchived: { type: 'boolean', description: 'Include archived entries (default false)' }
+          },
+          required: ['query']
+        }
+      },
+      {
+        name: 'scrum_knowledge_promote',
+        description: 'Promote a sprint share to the persistent knowledge base. Converts ephemeral sprint context into permanent organizational knowledge.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            shareId: { type: 'string', description: 'ID of the sprint share to promote' },
+            category: { type: 'string', enum: ['lesson', 'sop', 'architecture', 'pitfall', 'decision'], description: 'Override category (otherwise auto-mapped from share type)' },
+            tags: { type: 'array', items: { type: 'string' }, description: 'Tags to add' },
+            createdBy: { type: 'string', description: 'Your agent ID' }
+          },
+          required: ['shareId', 'createdBy']
+        }
       }
     ]
   };
@@ -775,7 +824,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const orchestrationTools = [
           'scrum_orchestrate_start', 'scrum_worker_complete', 'scrum_orchestrate_status'
         ];
-        const fullTools = [...teamTools, ...sprintTools, ...orchestrationTools];
+        const knowledgeTools = [
+          'scrum_knowledge_add', 'scrum_knowledge_search', 'scrum_knowledge_promote'
+        ];
+        const fullTools = [...teamTools, ...sprintTools, ...orchestrationTools, ...knowledgeTools];
 
         let recommendedTools: string[];
         if (input.profile === 'solo') {
@@ -2216,6 +2268,84 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               hint: activeWorkers.length === 0 && workerStatuses.length > 0
                 ? 'All workers complete. Review results and call scrum_sprint_complete if satisfied.'
                 : `${activeWorkers.length} workers still active.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ==================== KNOWLEDGE BASE ====================
+
+      case 'scrum_knowledge_add': {
+        const input = KnowledgeAddSchema.parse(args);
+        touchAgent(input.createdBy, ['knowledge']);
+
+        const entry = state.addKnowledge({
+          title: input.title,
+          content: input.content,
+          category: input.category,
+          tags: input.tags,
+          sourceTaskId: input.sourceTaskId,
+          createdBy: input.createdBy
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: 'ok',
+              entry,
+              message: `Knowledge entry "${input.title}" added to ${entry.category} category.`
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_knowledge_search': {
+        const input = KnowledgeSearchSchema.parse(args);
+
+        const results = state.searchKnowledge(input.query, {
+          category: input.category,
+          tags: input.tags,
+          limit: input.limit,
+          includeArchived: input.includeArchived
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              query: input.query,
+              count: results.length,
+              results
+            }, null, 2)
+          }]
+        };
+      }
+
+      case 'scrum_knowledge_promote': {
+        const input = KnowledgePromoteSchema.parse(args);
+        touchAgent(input.createdBy, ['knowledge']);
+
+        const entry = state.promoteSprintShare(input.shareId, {
+          category: input.category,
+          tags: input.tags,
+          createdBy: input.createdBy
+        });
+
+        if (!entry) {
+          return {
+            content: [{ type: 'text' as const, text: `Sprint share not found: ${input.shareId}` }],
+            isError: true
+          };
+        }
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              status: 'ok',
+              entry,
+              message: `Sprint share promoted to knowledge base as "${entry.title}" (${entry.category}).`
             }, null, 2)
           }]
         };

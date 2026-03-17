@@ -394,3 +394,27 @@ export interface SprintContext {
   allFiles: string[];         // All files being touched by any member
   allBoundaries: string[];    // All boundaries declared by any member
 }
+
+// ==================== KNOWLEDGE BASE ====================
+
+export type KnowledgeCategory = 'lesson' | 'sop' | 'architecture' | 'pitfall' | 'decision';
+
+export interface KnowledgeEntry {
+  id: string;
+  title: string;
+  content: string;
+  category: KnowledgeCategory;
+  tags: string[];
+  sourceSprintId?: string;
+  sourceTaskId?: string;
+  createdBy: string;
+  createdAt: number;
+  updatedAt?: number;
+  archivedAt?: number;
+}
+
+export interface KnowledgeSearchResult {
+  entry: KnowledgeEntry;
+  rank?: number;
+  snippet?: string;
+}

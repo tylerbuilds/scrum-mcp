@@ -333,6 +333,14 @@ export class SprintsRepository implements BaseRepository {
   }
 
   /**
+   * Get a single share by ID
+   */
+  getShare(shareId: string): SprintShare | null {
+    const row = this.db.prepare('SELECT * FROM sprint_shares WHERE id = ?').get(shareId) as SprintShareRow | undefined;
+    return row ? this.mapShareRow(row) : null;
+  }
+
+  /**
    * Get unanswered questions in a sprint
    */
   getUnansweredQuestions(sprintId: string): SprintShare[] {

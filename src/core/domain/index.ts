@@ -82,3 +82,10 @@ export { ChangelogRepository } from './changelog.js';
  * @see {@link SprintsRepository}
  */
 export { SprintsRepository } from './sprints.js';
+
+/**
+ * Repository for managing persistent cross-sprint knowledge base entries.
+ * Supports full-text search via FTS5 with LIKE fallback.
+ * @see {@link KnowledgeRepository}
+ */
+export { KnowledgeRepository } from './knowledge.js';

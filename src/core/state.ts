@@ -75,7 +75,10 @@ import type {
   SprintContext,
   SprintStatus,
   ShareType,
-  ScrumEvent
+  ScrumEvent,
+  KnowledgeEntry,
+  KnowledgeCategory,
+  KnowledgeSearchResult
 } from './types';
 
 // Domain repository imports
@@ -89,7 +92,8 @@ import {
   AgentsRepository,
   IntentsRepository,
   ChangelogRepository,
-  SprintsRepository
+  SprintsRepository,
+  KnowledgeRepository
 } from './domain/index.js';
 import { ComplianceRepository, type ComplianceCheck } from './domain/compliance.js';
 
@@ -134,6 +138,7 @@ export class ScrumState {
   private readonly changelog: ChangelogRepository;
   private readonly compliance: ComplianceRepository;
   private readonly sprints: SprintsRepository;
+  private readonly knowledge: KnowledgeRepository;
 
   private onEvent?: (evt: ScrumEvent) => void;
 
@@ -159,6 +164,7 @@ export class ScrumState {
     this.changelog = new ChangelogRepository(db, log);
     this.compliance = new ComplianceRepository(db, log);
     this.sprints = new SprintsRepository(db, log);
+    this.knowledge = new KnowledgeRepository(db, log);
 
     // Wire up cross-repository dependencies
     this.tasks.setChangelogCallback({
@@ -1867,5 +1873,91 @@ export class ScrumState {
    */
   linkIntentToSprint(intentId: string, sprintId: string): void {
     return this.sprints.linkIntentToSprint(intentId, sprintId);
+  }
+
+  // ==================== KNOWLEDGE BASE ====================
+
+  addKnowledge(input: {
+    title: string;
+    content: string;
+    category?: KnowledgeCategory;
+    tags?: string[];
+    sourceSprintId?: string;
+    sourceTaskId?: string;
+    createdBy: string;
+  }): KnowledgeEntry {
+    return this.knowledge.add(input);
+  }
+
+  getKnowledge(id: string): KnowledgeEntry | null {
+    return this.knowledge.get(id);
+  }
+
+  updateKnowledge(id: string, input: {
+    title?: string;
+    content?: string;
+    category?: KnowledgeCategory;
+    tags?: string[];
+  }): KnowledgeEntry | null {
+    return this.knowledge.update(id, input);
+  }
+
+  archiveKnowledge(id: string): boolean {
+    return this.knowledge.archive(id);
+  }
+
+  searchKnowledge(query: string, options?: {
+    category?: KnowledgeCategory;
+    tags?: string[];
+    limit?: number;
+    includeArchived?: boolean;
+  }): KnowledgeSearchResult[] {
+    return this.knowledge.search(query, options);
+  }
+
+  listKnowledge(options?: {
+    category?: KnowledgeCategory;
+    createdBy?: string;
+    limit?: number;
+    includeArchived?: boolean;
+  }): KnowledgeEntry[] {
+    return this.knowledge.list(options);
+  }
+
+  /**
+   * Promote a sprint share to a persistent knowledge base entry.
+   * Maps share types to knowledge categories:
+   * decision->decision, discovery->lesson, context->architecture,
+   * interface->architecture, integration->sop, question->lesson, answer->lesson
+   */
+  promoteSprintShare(shareId: string, options: {
+    category?: KnowledgeCategory;
+    tags?: string[];
+    createdBy: string;
+  }): KnowledgeEntry | null {
+    const share = this.sprints.getShare(shareId);
+    if (!share) return null;
+
+    // Map share type to knowledge category
+    const categoryMap: Record<string, KnowledgeCategory> = {
+      decision: 'decision',
+      discovery: 'lesson',
+      context: 'architecture',
+      interface: 'architecture',
+      integration: 'sop',
+      question: 'lesson',
+      answer: 'lesson'
+    };
+
+    const category = options.category ?? categoryMap[share.shareType] ?? 'lesson';
+
+    return this.knowledge.add({
+      title: share.title,
+      content: share.content,
+      category,
+      tags: options.tags,
+      sourceSprintId: share.sprintId,
+      createdBy: options.createdBy
+    });
   }
 }
