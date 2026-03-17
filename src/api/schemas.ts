@@ -985,3 +985,63 @@ export const AgentSetRoleSchema = z.object({
 export const AgentPermissionsSchema = z.object({
   agentId: z.string().min(1).max(120)
 });
+
+// ==================== KNOWLEDGE BASE ====================
+export const KnowledgeCategoryEnum = z.enum(['lesson', 'sop', 'architecture', 'pitfall', 'decision']);
+
+export const KnowledgeAddSchema = z.object({
+  title: z.string().min(1).max(200),
+  content: z.string().min(1).max(50000),
+  category: KnowledgeCategoryEnum.default('lesson'),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  sourceSprintId: z.string().optional(),
+  sourceTaskId: z.string().optional(),
+  createdBy: z.string().min(1).max(120)
+});
+export type KnowledgeAddInput = z.infer<typeof KnowledgeAddSchema>;
+
+export const KnowledgeSearchSchema = z.object({
+  query: z.string().min(1).max(500),
+  category: KnowledgeCategoryEnum.optional(),
+  tags: z.array(z.string()).optional(),
+  limit: z.number().int().min(1).max(100).default(20).optional(),
+  includeArchived: z.boolean().optional()
+});
+export type KnowledgeSearchInput = z.infer<typeof KnowledgeSearchSchema>;
+
+export const KnowledgeUpdateSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  content: z.string().min(1).max(50000).optional(),
+  category: KnowledgeCategoryEnum.optional(),
+  tags: z.array(z.string().max(50)).max(20).optional()
+});
+export type KnowledgeUpdateInput = z.infer<typeof KnowledgeUpdateSchema>;
+
+export const KnowledgePromoteSchema = z.object({
+  shareId: z.string().min(1),
+  category: KnowledgeCategoryEnum.optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  createdBy: z.string().min(1).max(120)
+});
+export type KnowledgePromoteInput = z.infer<typeof KnowledgePromoteSchema>;
+
+export const KnowledgeListQuerySchema = z.object({
+  category: KnowledgeCategoryEnum.optional(),
+  createdBy: z.string().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  includeArchived: z.coerce.boolean().optional()
+});
+export type KnowledgeListQueryInput = z.infer<typeof KnowledgeListQuerySchema>;
+
+export const KnowledgeSearchQuerySchema = z.object({
+  q: z.string().min(1).max(500),
+  category: KnowledgeCategoryEnum.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  includeArchived: z.coerce.boolean().optional()
+});
+export type KnowledgeSearchQueryInput = z.infer<typeof KnowledgeSearchQuerySchema>;
+
+export const KnowledgeIdParamsSchema = z.object({
+  id: z.string().min(1)
+});
+export type KnowledgeIdParams = z.infer<typeof KnowledgeIdParamsSchema>;

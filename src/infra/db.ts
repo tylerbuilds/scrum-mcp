@@ -232,6 +232,9 @@ function migrate(db: ScrumDb) {
 
   // Compliance history for retroactive auditing
   migrateComplianceHistoryTable(db);
+
+  // Knowledge base tables for persistent cross-sprint knowledge
+  migrateKnowledgeTables(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -407,4 +410,64 @@ function migrateComplianceHistoryTable(db: ScrumDb) {
     CREATE INDEX IF NOT EXISTS idx_compliance_history_checked_at ON compliance_history(checked_at);
     CREATE INDEX IF NOT EXISTS idx_compliance_history_score ON compliance_history(score);
   `);
+}
+
+/**
+ * Knowledge base tables for persistent cross-sprint knowledge
+ */
+function migrateKnowledgeTables(db: ScrumDb) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS knowledge (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'lesson',
+      tags_json TEXT DEFAULT '[]',
+      source_sprint_id TEXT,
+      source_task_id TEXT,
+      created_by TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER,
+      archived_at INTEGER,
+      FOREIGN KEY(source_sprint_id) REFERENCES sprints(id) ON DELETE SET NULL,
+      FOREIGN KEY(source_task_id) REFERENCES tasks(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge(category);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_created_by ON knowledge(created_by);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_created_at ON knowledge(created_at);
+    CREATE INDEX IF NOT EXISTS idx_knowledge_archived_at ON knowledge(archived_at);
+  `);
+
+  // FTS5 for full-text search (may not be available in all builds)
+  try {
+    db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+        title,
+        content,
+        tags,
+        content=knowledge,
+        content_rowid=rowid
+      );
+
+      CREATE TRIGGER IF NOT EXISTS knowledge_ai AFTER INSERT ON knowledge BEGIN
+        INSERT INTO knowledge_fts(rowid, title, content, tags)
+        VALUES (new.rowid, new.title, new.content, new.tags_json);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS knowledge_ad AFTER DELETE ON knowledge BEGIN
+        INSERT INTO knowledge_fts(knowledge_fts, rowid, title, content, tags)
+        VALUES('delete', old.rowid, old.title, old.content, old.tags_json);
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS knowledge_au AFTER UPDATE ON knowledge BEGIN
+        INSERT INTO knowledge_fts(knowledge_fts, rowid, title, content, tags)
+        VALUES('delete', old.rowid, old.title, old.content, old.tags_json);
+        INSERT INTO knowledge_fts(rowid, title, content, tags)
+        VALUES (new.rowid, new.title, new.content, new.tags_json);
+      END;
+    `);
+  } catch {
+    // FTS5 not available - search will fall back to LIKE queries
+  }
 }
