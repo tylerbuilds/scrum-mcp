@@ -394,3 +394,43 @@ export interface SprintContext {
   allFiles: string[];         // All files being touched by any member
   allBoundaries: string[];    // All boundaries declared by any member
 }
+
+// ==================== BUDGET TRACKING ====================
+
+export type BudgetCategory = 'llm_call' | 'tool_use' | 'evidence' | 'other';
+export type BudgetPeriod = 'task' | 'daily' | 'sprint';
+
+export interface BudgetEntry {
+  id: string;
+  agentId: string;
+  taskId?: string;
+  tokensUsed: number;
+  costUsd: number;
+  category: BudgetCategory;
+  description?: string;
+  createdAt: number;
+}
+
+export interface BudgetLimit {
+  id: string;
+  agentId?: string;
+  taskId?: string;
+  maxTokens?: number;
+  maxCostUsd?: number;
+  period: BudgetPeriod;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface BudgetStatus {
+  agentId: string;
+  taskId?: string;
+  period: BudgetPeriod;
+  tokensUsed: number;
+  costUsd: number;
+  limit?: BudgetLimit;
+  tokensRemaining?: number;
+  costRemaining?: number;
+  exceeded: boolean;
+  warning: boolean;
+}

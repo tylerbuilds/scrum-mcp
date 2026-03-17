@@ -82,3 +82,9 @@ export { ChangelogRepository } from './changelog.js';
  * @see {@link SprintsRepository}
  */
 export { SprintsRepository } from './sprints.js';
+
+/**
+ * Repository for tracking resource consumption (tokens, cost) with spending limits.
+ * @see {@link BudgetsRepository}
+ */
+export { BudgetsRepository } from './budgets.js';
