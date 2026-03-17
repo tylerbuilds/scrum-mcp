@@ -1,4 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import { timingSafeEqual } from 'node:crypto';
 
 export interface AuthConfig {
   enabled: boolean;
@@ -33,7 +34,20 @@ export async function authMiddleware(
     return;
   }
 
-  if (!config.apiKeys.has(apiKey)) {
+  let keyFound = false;
+  for (const validKey of config.apiKeys) {
+    if (apiKey.length === validKey.length) {
+      try {
+        if (timingSafeEqual(Buffer.from(apiKey), Buffer.from(validKey))) {
+          keyFound = true;
+          break;
+        }
+      } catch {
+        // length mismatch after encoding, skip
+      }
+    }
+  }
+  if (!keyFound) {
     reply.status(403).send({ ok: false, error: 'Invalid API key' });
     return;
   }

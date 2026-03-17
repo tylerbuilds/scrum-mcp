@@ -5,6 +5,50 @@ All notable changes to SCRUM MCP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-03-17
+
+### Added
+
+**Governance Pillars: State, Policy, and Verification**
+
+SCRUM MCP now serves as a full governance layer (pillars 3-5) for multi-agent systems.
+
+**RBAC on Tools (Policy)**
+- **`scrum_agent_set_role`** - Assign roles to agents (admin/lead/developer/reviewer/observer)
+- **`scrum_agent_permissions`** - View effective tool permissions for any agent
+- 5 built-in roles with default tool sets; custom per-agent overrides supported
+- Permission guard blocks unauthorized tool calls at MCP level
+- REST: `PATCH /api/agents/:agentId/role`, `GET /api/agents/:agentId/permissions`
+
+**Budget Tracking (State + Policy)**
+- **`scrum_budget_log`** - Log token/cost usage per agent per task
+- **`scrum_budget_status`** - Check usage vs limits with exceeded/warning flags
+- **`scrum_budget_limit_set`** - Set spending limits (per-agent, per-task, or global)
+- Period support: task, daily, sprint with automatic aggregation
+- Warning at 80% of limit, block at 100%
+- REST: `POST/GET /api/budgets`, `POST/GET/DELETE /api/budgets/limits`, `GET /api/budgets/status/:agentId`
+
+**Compliance History (Verification)**
+- **`scrum_compliance_history`** - Query historical compliance data with trend analysis
+- Every compliance check auto-recorded to `compliance_history` table
+- Trend analysis: avg score, compliance rate, score timeline per agent
+- REST: `GET /api/compliance/history`, `GET /api/compliance/trend/:agentId`
+
+**Knowledge Base (State)**
+- **`scrum_knowledge_add`** - Add persistent knowledge entries (lesson/sop/architecture/pitfall/decision)
+- **`scrum_knowledge_search`** - Full-text search via SQLite FTS5 with ranked results
+- **`scrum_knowledge_promote`** - Promote sprint shares to permanent knowledge
+- Survives across sprints; soft-delete archiving
+- REST: `POST/GET/PATCH/DELETE /api/knowledge`, `GET /api/knowledge/search`, `POST /api/knowledge/promote`
+
+### Changed
+
+- Total MCP tools: 35 → 44
+- Database schema: 4 new tables (budget_entries, budget_limits, compliance_history, knowledge + knowledge_fts)
+- Agents table extended with role and allowed_tools_json columns
+
+---
+
 ## [0.5.0] - 2026-01-16
 
 ### Added
@@ -219,3 +263,9 @@ SCRUM_STRICT_MODE=false npm start
 ```
 
 Note: MCP tools always enforce compliance regardless of strict mode.
+
+### 0.5.x → 1.0.0
+
+No breaking changes. All new features are additive. Existing agents default to 'developer' role with full backward compatibility.
+
+New database tables are created automatically on first run. Existing SQLite databases are migrated seamlessly.

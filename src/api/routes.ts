@@ -99,7 +99,9 @@ function bad(message: string) {
 export async function registerRoutes(app: FastifyInstance, state: ScrumState, config: ScrumConfig) {
   // Enable CORS for frontend
   app.addHook('onRequest', async (request, reply) => {
-    reply.header('Access-Control-Allow-Origin', '*');
+    const allowedOrigins = ['http://127.0.0.1:5174', 'http://localhost:5174', 'http://127.0.0.1:4177', 'http://localhost:4177'];
+    const origin = request.headers.origin || '';
+    reply.header('Access-Control-Allow-Origin', allowedOrigins.includes(origin) ? origin : 'http://127.0.0.1:5174');
     reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     reply.header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key');
     if (request.method === 'OPTIONS') {

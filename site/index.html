@@ -80,8 +80,8 @@
             evidence, and stream realtime signals without phoning home.
           </p>
           <div class="hero-actions">
-            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-              Download v0.5.2
+            <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v1.0.0.zip">
+              Download v1.0.0
             </a>
             <a class="btn btn-ghost" href="#start">
               Get started
@@ -144,33 +144,33 @@
     <section class="section section-new">
       <div class="container">
         <div class="section-head" data-reveal>
-          <p class="eyebrow eyebrow-new">New in v0.5.2</p>
-          <h2>~50% fewer tokens per task.</h2>
+          <p class="eyebrow eyebrow-new">New in v1.0.0</p>
+          <h2>Multi-agent governance, built in.</h2>
           <p>
-            Convenience tools combine common workflows into single calls.
-            What used to take 10+ tool calls now takes 3.
+            SCRUM MCP now serves as the governance layer for multi-agent systems.
+            Control who can do what, track spending, audit compliance over time, and
+            build persistent knowledge that survives sprint boundaries.
           </p>
         </div>
         <div class="convenience-grid" data-reveal>
           <div class="convenience-card">
-            <code>scrum_context()</code>
-            <span>Session startup in ONE call. Returns status, tasks, claims, board.</span>
+            <code>RBAC on Tools</code>
+            <span>5 roles (admin → observer) with per-agent tool permissions. Block unauthorized actions at the protocol level.</span>
           </div>
           <div class="convenience-card">
-            <code>scrum_start_work()</code>
-            <span>Begin work in ONE call. Does overlap → intent → claim.</span>
+            <code>Budget Tracking</code>
+            <span>Log tokens and cost per agent per task. Set limits with 80% warning and hard blocks.</span>
           </div>
           <div class="convenience-card">
-            <code>scrum_finish_work()</code>
-            <span>Complete work in ONE call. Does evidence → compliance → release.</span>
+            <code>Knowledge Base</code>
+            <span>Persistent lessons, SOPs, and decisions with FTS5 search. Promote sprint shares to permanent knowledge.</span>
           </div>
         </div>
         <div class="also-new" data-reveal>
           <p>
             <strong>Also new:</strong>
-            Pre-commit hooks · Profile auto-detection (solo/team/full) ·
-            Orchestration tools · Sprint collaboration · Unified blocker/dependency/metrics tools ·
-            Compliance verification
+            Compliance history with trend analysis · 44 MCP tools (up from 35) ·
+            Agent role management · Budget enforcement · Historical compliance auditing
           </p>
         </div>
       </div>
@@ -189,8 +189,8 @@
             <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
               Clone the repo
             </a>
-            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-              Download ZIP v0.5.2
+            <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v1.0.0.zip">
+              Download ZIP v1.0.0
             </a>
           </div>
           <div class="start-notes">
@@ -290,6 +290,20 @@ npm run cli -- task create --title "First task"</code></pre>
             </p>
           </article>
           <article class="card" data-reveal>
+            <h3>RBAC &amp; Budget Control</h3>
+            <p>
+              Assign roles to agents. Set spending limits. Track token usage per
+              task. Block over-budget agents automatically.
+            </p>
+          </article>
+          <article class="card" data-reveal>
+            <h3>Knowledge Base</h3>
+            <p>
+              Persistent lessons, SOPs, and architecture notes with full-text search.
+              Knowledge that survives beyond sprint boundaries.
+            </p>
+          </article>
+          <article class="card" data-reveal>
             <h3>Local-first Trust</h3>
             <p>
               SCRUM never phones home. Runs where your repo lives. Never edits
@@ -310,9 +324,9 @@ npm run cli -- task create --title "First task"</code></pre>
             Continue, and any MCP client can share intent and receipts instantly.
           </p>
           <ul class="list">
-            <li>35 MCP tools: consolidated + token-optimized convenience tools</li>
-            <li>Profile discovery: solo (15), team (24), full (35) tools</li>
-            <li>Sprint collaboration, compliance verification, Kanban, metrics</li>
+            <li>44 MCP tools: governance + coordination + token-optimized convenience</li>
+            <li>Profile discovery: solo (16), team (25), full (44) tools</li>
+            <li>RBAC, budget tracking, compliance history, knowledge base, sprints</li>
           </ul>
           <div class="mini-cta">
             <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/blob/main/docs/MCP.md"
@@ -470,8 +484,8 @@ git commit -m "Add feature"
           </p>
         </div>
         <div class="cta-actions">
-          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v0.5.2.zip">
-            Download v0.5.2
+          <a class="btn btn-primary" href="https://github.com/tylerbuilds/scrum-mcp/archive/refs/tags/v1.0.0.zip">
+            Download v1.0.0
           </a>
           <a class="btn btn-ghost" href="https://github.com/tylerbuilds/scrum-mcp" target="_blank" rel="noreferrer">
             GitHub repo
