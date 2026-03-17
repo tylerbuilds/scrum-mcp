@@ -60,6 +60,7 @@ import {
   // Compliance schemas
   ComplianceTaskParamsSchema,
   ComplianceAgentParamsSchema,
+  ComplianceHistoryQuerySchema,
   // Sprint schemas
   SprintCreateSchema,
   SprintIdParamsSchema,
@@ -874,6 +875,32 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
       allCompliant: results.every(r => r.canComplete),
       agents: results
     });
+  });
+
+  // ==================== COMPLIANCE HISTORY ====================
+
+  // Query compliance history
+  app.get('/api/compliance/history', async (req, reply) => {
+    const queryParsed = ComplianceHistoryQuerySchema.safeParse(req.query);
+    if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
+
+    const history = state.getComplianceHistory(queryParsed.data);
+    return ok({ count: history.length, entries: history });
+  });
+
+  // Get compliance trend for an agent
+  app.get('/api/compliance/trend/:agentId', async (req, reply) => {
+    const paramsParsed = z.object({ agentId: z.string().min(1).max(120) }).safeParse(req.params);
+    if (!paramsParsed.success) return reply.status(400).send(bad(paramsParsed.error.message));
+
+    const queryParsed = z.object({
+      since: z.coerce.number().optional(),
+      until: z.coerce.number().optional()
+    }).safeParse(req.query);
+    if (!queryParsed.success) return reply.status(400).send(bad(queryParsed.error.message));
+
+    const trend = state.getComplianceTrend(paramsParsed.data.agentId, queryParsed.data);
+    return ok(trend);
   });
 
   // ==================== SPRINTS (Collaborative Multi-Agent Work) ====================

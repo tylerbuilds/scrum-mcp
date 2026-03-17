@@ -1,6 +1,7 @@
 import type BetterSqlite3 from 'better-sqlite3';
 import type { Logger } from 'pino';
-import type { Intent, Evidence, ChangelogEntry, Claim } from '../types.js';
+import { nanoid } from 'nanoid';
+import type { Intent, Evidence, ChangelogEntry, Claim, ComplianceHistoryEntry, ComplianceTrend } from '../types.js';
 import { type BaseRepository, now } from './base.js';
 
 // ==================== COMPLIANCE TYPES ====================
@@ -137,7 +138,7 @@ export class ComplianceRepository implements BaseRepository {
 
     const summary = this.generateSummary(checks, score);
 
-    return {
+    const result: ComplianceCheck = {
       taskId,
       agentId,
       compliant,
@@ -146,6 +147,92 @@ export class ComplianceRepository implements BaseRepository {
       summary,
       canComplete,
       checkedAt: now()
+    };
+
+    // Record to history (non-blocking, don't fail compliance check)
+    try {
+      this.recordHistory(result);
+    } catch (e) {
+      this.log.warn({ err: e }, 'Failed to record compliance history');
+    }
+
+    return result;
+  }
+
+  // ==================== HISTORY ====================
+
+  private recordHistory(check: ComplianceCheck): void {
+    const id = nanoid(12);
+    this.db.prepare(`INSERT INTO compliance_history
+      (id, task_id, agent_id, score, compliant, can_complete, checks_json, summary, checked_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, check.taskId, check.agentId, check.score,
+           check.compliant ? 1 : 0, check.canComplete ? 1 : 0,
+           JSON.stringify(check.checks), check.summary, check.checkedAt);
+  }
+
+  private historyRowToEntry(row: any): ComplianceHistoryEntry {
+    return {
+      id: row.id,
+      taskId: row.task_id,
+      agentId: row.agent_id,
+      score: row.score,
+      compliant: row.compliant === 1,
+      canComplete: row.can_complete === 1,
+      checks: JSON.parse(row.checks_json),
+      summary: row.summary,
+      checkedAt: row.checked_at
+    };
+  }
+
+  getHistory(options: {
+    taskId?: string;
+    agentId?: string;
+    since?: number;
+    until?: number;
+    limit?: number;
+  }): ComplianceHistoryEntry[] {
+    let query = 'SELECT * FROM compliance_history WHERE 1=1';
+    const params: (string | number)[] = [];
+
+    if (options.taskId) { query += ' AND task_id = ?'; params.push(options.taskId); }
+    if (options.agentId) { query += ' AND agent_id = ?'; params.push(options.agentId); }
+    if (options.since) { query += ' AND checked_at >= ?'; params.push(options.since); }
+    if (options.until) { query += ' AND checked_at <= ?'; params.push(options.until); }
+
+    query += ' ORDER BY checked_at DESC';
+    query += ` LIMIT ${options.limit ?? 50}`;
+
+    const rows = this.db.prepare(query).all(...params);
+    return rows.map((r: any) => this.historyRowToEntry(r));
+  }
+
+  getTrend(agentId: string, options?: { since?: number; until?: number }): ComplianceTrend {
+    let query = 'SELECT * FROM compliance_history WHERE agent_id = ?';
+    const params: (string | number)[] = [agentId];
+
+    const since = options?.since ?? (now() - 30 * 24 * 60 * 60 * 1000); // default: last 30 days
+    const until = options?.until ?? now();
+
+    query += ' AND checked_at >= ? AND checked_at <= ?';
+    params.push(since, until);
+    query += ' ORDER BY checked_at ASC';
+
+    const rows = this.db.prepare(query).all(...params) as any[];
+
+    const totalChecks = rows.length;
+    const avgScore = totalChecks > 0 ? Math.round(rows.reduce((sum, r) => sum + r.score, 0) / totalChecks) : 0;
+    const compliantCount = rows.filter(r => r.compliant === 1).length;
+    const complianceRate = totalChecks > 0 ? Math.round((compliantCount / totalChecks) * 100) : 0;
+    const scores = rows.map(r => ({ checkedAt: r.checked_at, score: r.score, taskId: r.task_id }));
+
+    return {
+      agentId,
+      period: { since, until },
+      totalChecks,
+      avgScore,
+      complianceRate,
+      scores
     };
   }
 

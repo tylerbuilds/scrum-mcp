@@ -569,6 +569,20 @@ export const ComplianceCheckSchema = z.object({
 });
 export type ComplianceCheckInput = z.infer<typeof ComplianceCheckSchema>;
 
+export const ComplianceHistoryQuerySchema = z.object({
+  taskId: z.string().optional(),
+  agentId: z.string().optional(),
+  since: z.coerce.number().optional(),
+  until: z.coerce.number().optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
+export const ComplianceTrendSchema = z.object({
+  agentId: z.string().min(1).max(120),
+  since: z.coerce.number().optional(),
+  until: z.coerce.number().optional()
+});
+
 export const ComplianceTaskParamsSchema = z.object({
   taskId: TaskIdField
 });

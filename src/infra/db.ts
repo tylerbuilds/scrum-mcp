@@ -223,6 +223,9 @@ function migrate(db: ScrumDb) {
 
   // Sprint tables for collaborative multi-agent work
   migrateSprintTables(db);
+
+  // Compliance history for retroactive auditing
+  migrateComplianceHistoryTable(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -327,4 +330,26 @@ function migrateSprintTables(db: ScrumDb) {
     db.exec(`ALTER TABLE intents ADD COLUMN sprint_id TEXT REFERENCES sprints(id) ON DELETE SET NULL`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_intents_sprint_id ON intents(sprint_id)`);
   }
+}
+
+function migrateComplianceHistoryTable(db: ScrumDb) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS compliance_history (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      compliant INTEGER NOT NULL,
+      can_complete INTEGER NOT NULL,
+      checks_json TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      checked_at INTEGER NOT NULL,
+      FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_task_id ON compliance_history(task_id);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_agent_id ON compliance_history(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_checked_at ON compliance_history(checked_at);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_score ON compliance_history(score);
+  `);
 }

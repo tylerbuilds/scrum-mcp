@@ -92,6 +92,7 @@ import {
   SprintsRepository
 } from './domain/index.js';
 import { ComplianceRepository, type ComplianceCheck } from './domain/compliance.js';
+import type { ComplianceHistoryEntry, ComplianceTrend } from './types';
 
 /**
  * Activity feed item representing a recent action in the SCRUM system.
@@ -1578,6 +1579,20 @@ export class ScrumState {
    */
   checkCompliance(taskId: string, agentId: string): ComplianceCheck {
     return this.compliance.checkCompliance(taskId, agentId);
+  }
+
+  getComplianceHistory(options: {
+    taskId?: string;
+    agentId?: string;
+    since?: number;
+    until?: number;
+    limit?: number;
+  }): ComplianceHistoryEntry[] {
+    return this.compliance.getHistory(options);
+  }
+
+  getComplianceTrend(agentId: string, options?: { since?: number; until?: number }): ComplianceTrend {
+    return this.compliance.getTrend(agentId, options);
   }
 
   /**

@@ -394,3 +394,26 @@ export interface SprintContext {
   allFiles: string[];         // All files being touched by any member
   allBoundaries: string[];    // All boundaries declared by any member
 }
+
+// ==================== COMPLIANCE HISTORY ====================
+
+export interface ComplianceHistoryEntry {
+  id: string;
+  taskId: string;
+  agentId: string;
+  score: number;
+  compliant: boolean;
+  canComplete: boolean;
+  checks: Record<string, unknown>;
+  summary: string;
+  checkedAt: number;
+}
+
+export interface ComplianceTrend {
+  agentId: string;
+  period: { since: number; until: number };
+  totalChecks: number;
+  avgScore: number;
+  complianceRate: number;
+  scores: Array<{ checkedAt: number; score: number; taskId: string }>;
+}
