@@ -229,6 +229,9 @@ function migrate(db: ScrumDb) {
 
   // Budget tracking tables
   migrateBudgetTables(db);
+
+  // Compliance history for retroactive auditing
+  migrateComplianceHistoryTable(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -381,5 +384,27 @@ function migrateBudgetTables(db: ScrumDb) {
     CREATE INDEX IF NOT EXISTS idx_budget_entries_created_at ON budget_entries(created_at);
     CREATE INDEX IF NOT EXISTS idx_budget_entries_category ON budget_entries(category);
     CREATE INDEX IF NOT EXISTS idx_budget_limits_agent_id ON budget_limits(agent_id);
+  `);
+}
+
+function migrateComplianceHistoryTable(db: ScrumDb) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS compliance_history (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      agent_id TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      compliant INTEGER NOT NULL,
+      can_complete INTEGER NOT NULL,
+      checks_json TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      checked_at INTEGER NOT NULL,
+      FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_task_id ON compliance_history(task_id);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_agent_id ON compliance_history(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_checked_at ON compliance_history(checked_at);
+    CREATE INDEX IF NOT EXISTS idx_compliance_history_score ON compliance_history(score);
   `);
 }

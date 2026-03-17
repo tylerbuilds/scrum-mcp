@@ -516,6 +516,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['taskId', 'agentId']
         }
       },
+      {
+        name: 'scrum_compliance_history',
+        description: 'Query historical compliance check data. View scores over time, filter by task or agent, and analyze compliance trends. Every compliance check is automatically recorded.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Filter by agent ID' },
+            taskId: { type: 'string', description: 'Filter by task ID' },
+            since: { type: 'number', description: 'Start timestamp (ms)' },
+            until: { type: 'number', description: 'End timestamp (ms)' },
+            limit: { type: 'number', description: 'Max entries to return (default 50)' },
+            trend: { type: 'boolean', description: 'If true and agentId provided, return trend analysis instead of raw entries' }
+          }
+        }
+      },
       // ==================== SPRINT (Collaborative Multi-Agent Work) ====================
       {
         name: 'scrum_sprint_create',
@@ -847,7 +862,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const soloTools = [
           'scrum_status', 'scrum_task_create', 'scrum_task_get', 'scrum_task_list', 'scrum_task_update',
           'scrum_intent_post', 'scrum_claim', 'scrum_claim_release', 'scrum_claims_list',
-          'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board', 'scrum_compliance_check',
+          'scrum_evidence_attach', 'scrum_overlap_check', 'scrum_board', 'scrum_compliance_check', 'scrum_compliance_history',
           // Convenience tools (v0.5.2) - token optimized
           'scrum_context', 'scrum_start_work', 'scrum_finish_work'
         ];
@@ -1537,6 +1552,38 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               nextSteps: !result.canComplete ? getComplianceNextSteps(result) : undefined
             }, null, 2)
           }]
+        };
+      }
+
+      case 'scrum_compliance_history': {
+        const input = args as {
+          agentId?: string;
+          taskId?: string;
+          since?: number;
+          until?: number;
+          limit?: number;
+          trend?: boolean;
+        };
+
+        if (input.trend && input.agentId) {
+          const trend = state.getComplianceTrend(input.agentId, {
+            since: input.since,
+            until: input.until
+          });
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify(trend, null, 2) }]
+          };
+        }
+
+        const history = state.getComplianceHistory({
+          taskId: input.taskId,
+          agentId: input.agentId,
+          since: input.since,
+          until: input.until,
+          limit: input.limit
+        });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ count: history.length, entries: history }, null, 2) }]
         };
       }
 
