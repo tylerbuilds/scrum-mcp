@@ -76,7 +76,12 @@ import type {
   SprintContext,
   SprintStatus,
   ShareType,
-  ScrumEvent
+  ScrumEvent,
+  BudgetEntry,
+  BudgetLimit,
+  BudgetStatus,
+  BudgetCategory,
+  BudgetPeriod
 } from './types';
 
 // Domain repository imports
@@ -90,7 +95,8 @@ import {
   AgentsRepository,
   IntentsRepository,
   ChangelogRepository,
-  SprintsRepository
+  SprintsRepository,
+  BudgetsRepository
 } from './domain/index.js';
 import { ComplianceRepository, type ComplianceCheck } from './domain/compliance.js';
 
@@ -135,6 +141,7 @@ export class ScrumState {
   private readonly changelog: ChangelogRepository;
   private readonly compliance: ComplianceRepository;
   private readonly sprints: SprintsRepository;
+  private readonly budgets: BudgetsRepository;
 
   private onEvent?: (evt: ScrumEvent) => void;
 
@@ -160,6 +167,7 @@ export class ScrumState {
     this.changelog = new ChangelogRepository(db, log);
     this.compliance = new ComplianceRepository(db, log);
     this.sprints = new SprintsRepository(db, log);
+    this.budgets = new BudgetsRepository(db, log);
 
     // Wire up cross-repository dependencies
     this.tasks.setChangelogCallback({
@@ -1882,5 +1890,55 @@ export class ScrumState {
    */
   linkIntentToSprint(intentId: string, sprintId: string): void {
     return this.sprints.linkIntentToSprint(intentId, sprintId);
+  }
+
+  // ==================== BUDGET TRACKING ====================
+
+  logBudgetUsage(input: {
+    agentId: string;
+    taskId?: string;
+    tokensUsed?: number;
+    costUsd?: number;
+    category?: BudgetCategory;
+    description?: string;
+  }): BudgetEntry {
+    return this.budgets.logUsage(input);
+  }
+
+  setBudgetLimit(input: {
+    agentId?: string;
+    taskId?: string;
+    maxTokens?: number;
+    maxCostUsd?: number;
+    period?: BudgetPeriod;
+  }): BudgetLimit {
+    return this.budgets.setLimit(input);
+  }
+
+  getBudgetStatus(agentId: string, options?: { taskId?: string; period?: BudgetPeriod }): BudgetStatus {
+    return this.budgets.getStatus(agentId, options);
+  }
+
+  checkBudget(agentId: string, taskId?: string): { allowed: boolean; warnings: string[] } {
+    return this.budgets.checkBudget(agentId, taskId);
+  }
+
+  getBudgetUsage(options: {
+    agentId?: string;
+    taskId?: string;
+    since?: number;
+    until?: number;
+    category?: BudgetCategory;
+    limit?: number;
+  }): BudgetEntry[] {
+    return this.budgets.getUsage(options);
+  }
+
+  listBudgetLimits(agentId?: string): BudgetLimit[] {
+    return this.budgets.listLimits(agentId);
+  }
+
+  removeBudgetLimit(id: string): boolean {
+    return this.budgets.removeLimit(id);
   }
 }

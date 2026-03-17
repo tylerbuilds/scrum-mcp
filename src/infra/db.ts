@@ -226,6 +226,9 @@ function migrate(db: ScrumDb) {
 
   // RBAC columns on agents table
   migrateRbacColumns(db);
+
+  // Budget tracking tables
+  migrateBudgetTables(db);
 }
 
 function migrateKanbanColumns(db: ScrumDb) {
@@ -346,4 +349,37 @@ function migrateRbacColumns(db: ScrumDb) {
       db.exec(`ALTER TABLE agents ADD COLUMN ${col.name} ${col.definition}`);
     }
   }
+}
+
+function migrateBudgetTables(db: ScrumDb) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS budget_entries (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL,
+      task_id TEXT,
+      tokens_used INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0.0,
+      category TEXT NOT NULL DEFAULT 'tool_use',
+      description TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS budget_limits (
+      id TEXT PRIMARY KEY,
+      agent_id TEXT,
+      task_id TEXT,
+      max_tokens INTEGER,
+      max_cost_usd REAL,
+      period TEXT NOT NULL DEFAULT 'task',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER,
+      UNIQUE(agent_id, task_id, period)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_budget_entries_agent_id ON budget_entries(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_budget_entries_task_id ON budget_entries(task_id);
+    CREATE INDEX IF NOT EXISTS idx_budget_entries_created_at ON budget_entries(created_at);
+    CREATE INDEX IF NOT EXISTS idx_budget_entries_category ON budget_entries(category);
+    CREATE INDEX IF NOT EXISTS idx_budget_limits_agent_id ON budget_limits(agent_id);
+  `);
 }

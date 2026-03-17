@@ -723,6 +723,42 @@ export type LimitQueryInput = z.infer<typeof LimitQuerySchema>;
 // Legacy aliases for backward compatibility
 export const CommentListQuery = CommentListQuerySchema;
 
+// ==================== BUDGET TRACKING ====================
+export const BudgetCategoryEnum = z.enum(['llm_call', 'tool_use', 'evidence', 'other']);
+export const BudgetPeriodEnum = z.enum(['task', 'daily', 'sprint']);
+
+export const BudgetLogSchema = z.object({
+  agentId: z.string().min(1).max(120),
+  taskId: z.string().min(4).optional(),
+  tokensUsed: z.number().int().min(0).default(0),
+  costUsd: z.number().min(0).default(0),
+  category: BudgetCategoryEnum.default('tool_use'),
+  description: z.string().max(500).optional()
+});
+
+export const BudgetStatusSchema = z.object({
+  agentId: z.string().min(1).max(120),
+  taskId: z.string().optional(),
+  period: BudgetPeriodEnum.optional()
+});
+
+export const BudgetLimitSetSchema = z.object({
+  agentId: z.string().min(1).max(120).optional(),
+  taskId: z.string().optional(),
+  maxTokens: z.number().int().min(0).optional(),
+  maxCostUsd: z.number().min(0).optional(),
+  period: BudgetPeriodEnum.default('task')
+});
+
+export const BudgetUsageQuerySchema = z.object({
+  agentId: z.string().optional(),
+  taskId: z.string().optional(),
+  since: z.coerce.number().optional(),
+  until: z.coerce.number().optional(),
+  category: BudgetCategoryEnum.optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional()
+});
+
 // ==================== CONSOLIDATED MCP SCHEMAS (v0.5.1) ====================
 
 /**

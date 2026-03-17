@@ -57,7 +57,11 @@ import {
   OrchestrateStatusSchema,
   // RBAC schemas
   AgentSetRoleSchema,
-  AgentPermissionsSchema
+  AgentPermissionsSchema,
+  // Budget schemas
+  BudgetLogSchema,
+  BudgetStatusSchema,
+  BudgetLimitSetSchema
 } from './api/schemas.js';
 import type { ComplianceCheck } from './core/domain/compliance.js';
 
@@ -765,6 +769,50 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             agentId: { type: 'string', description: 'The agent to check permissions for' }
           },
           required: ['agentId']
+        }
+      },
+      {
+        name: 'scrum_budget_log',
+        description: 'Log token/cost usage for budget tracking. Call after expensive operations (LLM calls, tool use) to track resource consumption.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Agent ID' },
+            taskId: { type: 'string', description: 'Task ID (optional)' },
+            tokensUsed: { type: 'number', description: 'Tokens consumed (default 0)' },
+            costUsd: { type: 'number', description: 'Cost in USD (default 0)' },
+            category: { type: 'string', enum: ['llm_call', 'tool_use', 'evidence', 'other'], description: 'Usage category (default tool_use)' },
+            description: { type: 'string', description: 'Description of what was done (optional)' }
+          },
+          required: ['agentId']
+        }
+      },
+      {
+        name: 'scrum_budget_status',
+        description: 'Check budget status for an agent. Returns usage totals, limits, remaining budget, and whether limits are exceeded or approaching.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Agent ID to check' },
+            taskId: { type: 'string', description: 'Scope to specific task (optional)' },
+            period: { type: 'string', enum: ['task', 'daily', 'sprint'], description: 'Budget period (default task)' }
+          },
+          required: ['agentId']
+        }
+      },
+      {
+        name: 'scrum_budget_limit_set',
+        description: 'Set spending limits for an agent or globally. Limits can be per-task, daily, or per-sprint. Warns at 80% and blocks at 100%.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            agentId: { type: 'string', description: 'Agent ID (omit for global limit)' },
+            taskId: { type: 'string', description: 'Task ID (omit for agent-wide limit)' },
+            maxTokens: { type: 'number', description: 'Maximum tokens allowed' },
+            maxCostUsd: { type: 'number', description: 'Maximum cost in USD' },
+            period: { type: 'string', enum: ['task', 'daily', 'sprint'], description: 'Limit period (default task)' }
+          },
+          required: []
         }
       }
     ]
@@ -2307,6 +2355,34 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }]
+        };
+      }
+
+      case 'scrum_budget_log': {
+        const input = BudgetLogSchema.parse(args);
+        touchAgent(input.agentId);
+        const entry = state.logBudgetUsage(input);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ status: 'ok', entry }, null, 2) }]
+        };
+      }
+
+      case 'scrum_budget_status': {
+        const input = BudgetStatusSchema.parse(args);
+        const budgetStatus = state.getBudgetStatus(input.agentId, {
+          taskId: input.taskId,
+          period: input.period
+        });
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify(budgetStatus, null, 2) }]
+        };
+      }
+
+      case 'scrum_budget_limit_set': {
+        const input = BudgetLimitSetSchema.parse(args);
+        const limit = state.setBudgetLimit(input);
+        return {
+          content: [{ type: 'text' as const, text: JSON.stringify({ status: 'ok', limit }, null, 2) }]
         };
       }
 

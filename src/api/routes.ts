@@ -69,7 +69,12 @@ import {
   SprintShareRestSchema,
   SprintSharesQuerySchema,
   // RBAC schemas
-  AgentSetRoleSchema
+  AgentSetRoleSchema,
+  // Budget schemas
+  BudgetLogSchema,
+  BudgetUsageQuerySchema,
+  BudgetStatusSchema,
+  BudgetLimitSetSchema
 } from './schemas.js';
 import type { ScrumState } from '../core/state.js';
 import type { ScrumConfig } from '../core/config.js';
@@ -1139,6 +1144,60 @@ export async function registerRoutes(app: FastifyInstance, state: ScrumState, co
     const result = state.getAgentPermissions(params.data.agentId);
     if (!result) return reply.status(404).send(bad('Agent not found'));
     return ok(result);
+  });
+
+  // ==================== BUDGET TRACKING ====================
+
+  // Log budget entry
+  app.post('/api/budgets', async (req, reply) => {
+    const parsed = BudgetLogSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const entry = state.logBudgetUsage(parsed.data);
+    return ok(entry);
+  });
+
+  // Query budget entries
+  app.get('/api/budgets', async (req, reply) => {
+    const parsed = BudgetUsageQuerySchema.safeParse(req.query);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const entries = state.getBudgetUsage(parsed.data);
+    return ok(entries);
+  });
+
+  // Get budget status for an agent
+  app.get('/api/budgets/status/:agentId', async (req, reply) => {
+    const params = req.params as { agentId: string };
+    const query = req.query as { period?: string; taskId?: string };
+    const parsed = BudgetStatusSchema.safeParse({ agentId: params.agentId, ...query });
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const budgetStatus = state.getBudgetStatus(parsed.data.agentId, {
+      taskId: parsed.data.taskId,
+      period: parsed.data.period
+    });
+    return ok(budgetStatus);
+  });
+
+  // Set budget limit
+  app.post('/api/budgets/limits', async (req, reply) => {
+    const parsed = BudgetLimitSetSchema.safeParse(req.body);
+    if (!parsed.success) return reply.status(400).send(bad(parsed.error.message));
+    const limit = state.setBudgetLimit(parsed.data);
+    return ok(limit);
+  });
+
+  // List budget limits
+  app.get('/api/budgets/limits', async (req, reply) => {
+    const query = req.query as { agentId?: string };
+    const limits = state.listBudgetLimits(query.agentId);
+    return ok(limits);
+  });
+
+  // Remove budget limit
+  app.delete('/api/budgets/limits/:limitId', async (req, reply) => {
+    const params = req.params as { limitId: string };
+    const removed = state.removeBudgetLimit(params.limitId);
+    if (!removed) return reply.status(404).send(bad('Limit not found'));
+    return ok({ removed: true });
   });
 
   // ==================== AUTH MIDDLEWARE ====================
