@@ -12,7 +12,12 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-lg border bg-slate-800 text-slate-100 shadow-sm", className)}
+      className={cn(
+        "rounded-xl border border-stone-800 bg-stone-950/70 text-stone-100",
+        "shadow-lg shadow-black/20 backdrop-blur-sm",
+        "transition-all duration-200 hover:border-stone-700",
+        className
+      )}
       {...props}
     />
   )
@@ -45,7 +50,7 @@ export const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<H
   ({ className, ...props }, ref) => (
     <p
       ref={ref}
-      className={cn("text-sm text-slate-400", className)}
+      className={cn("text-sm text-stone-400", className)}
       {...props}
     />
   )

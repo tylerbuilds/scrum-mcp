@@ -190,16 +190,17 @@ export function AgentGrid() {
                     initial={{ opacity: 0, y: 20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
+                    whileHover={isOffline ? {} : { y: -2, scale: 1.01 }}
                     transition={{
                       duration: 0.3,
                       delay: index * 0.05,
                       layout: { duration: 0.2 }
                     }}
                     className={clsx(
-                      "relative p-4 rounded-lg border overflow-hidden group",
+                      "relative p-4 rounded-lg border overflow-hidden group cursor-default",
                       isOffline
                         ? "bg-stone-950/60 border-stone-800 opacity-60"
-                        : "bg-stone-900/80 border-stone-800 hover:border-amber-500/50 transition-all"
+                        : "bg-stone-900/80 border-stone-800 hover:border-amber-500/50 transition-all hover:shadow-lg hover:shadow-amber-500/5"
                     )}
                   >
                     {/* Gradient glow effect based on agent type */}

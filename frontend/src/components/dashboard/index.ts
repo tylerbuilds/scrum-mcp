@@ -8,3 +8,4 @@ export { ComplianceSummary } from './ComplianceSummary';
 export { TaskQueue } from './TaskQueue';
 export { TaskDetailModal } from './TaskDetailModal';
 export { AnimatedCard, PulseIndicator, GlowingText, MetricValue } from './AnimatedCard';
+export { CommandPalette, useCommandPalette } from './CommandPalette';

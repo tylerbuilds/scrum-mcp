@@ -1,0 +1,199 @@
+{
+  "title": "SCRUM MCP Control Room - World Class Dashboard Upgrade",
+  "description": "Transform the Control Room dashboard from 7.5/10 to 9+/10 - matching Linear/Vercel quality standards",
+  "branchName": "feature/world-class-dashboard",
+  "stories": [
+    {
+      "id": "WCD-001",
+      "title": "Fix Visual Consistency - Button & Card Styling",
+      "priority": 1,
+      "description": "Fix the Button component to use amber/stone theme instead of cyan. Standardize card padding to p-6 across all dashboard cards.",
+      "acceptanceCriteria": [
+        "Button component uses amber-500/amber-600 colors instead of cyan",
+        "All card components use consistent p-6 padding",
+        "Hover states use amber glow effect",
+        "Button variants: default (amber), secondary (stone), destructive (red)"
+      ],
+      "files": ["frontend/src/components/ui/button.tsx", "frontend/src/components/ui/card.tsx"],
+      "passes": true
+    },
+    {
+      "id": "WCD-002",
+      "title": "Add Toast Notification System",
+      "priority": 2,
+      "description": "Add a toast notification system using sonner for error handling, success messages, and real-time event notifications.",
+      "acceptanceCriteria": [
+        "Install and configure sonner toast library",
+        "Add Toaster component to App.tsx",
+        "Replace console.error calls in useScrumStore with toast.error",
+        "Show toast on WebSocket connect/disconnect events",
+        "Toast styling matches dark amber theme"
+      ],
+      "files": ["frontend/src/App.tsx", "frontend/src/store/useScrumStore.ts", "frontend/package.json"],
+      "passes": true
+    },
+    {
+      "id": "WCD-003",
+      "title": "Implement Cmd+K Command Palette Search",
+      "priority": 3,
+      "description": "Add a Linear-style Cmd+K command palette with keyboard navigation, filters, and recent searches.",
+      "acceptanceCriteria": [
+        "Cmd+K (Mac) / Ctrl+K (Win) opens search modal",
+        "Modal has dark glassmorphic overlay effect",
+        "Search filters: type:task, status:in_progress, agent:claude",
+        "Arrow key navigation through results",
+        "Enter selects result, Escape closes",
+        "Shows recent searches when empty",
+        "Debounced search input (300ms)"
+      ],
+      "files": ["frontend/src/components/dashboard/CommandPalette.tsx", "frontend/src/components/dashboard/index.ts", "frontend/src/pages/ControlRoomPage.tsx"],
+      "passes": true
+    },
+    {
+      "id": "WCD-004",
+      "title": "Enhanced Task Queue with Sorting & Filtering",
+      "priority": 4,
+      "description": "Upgrade TaskQueue to a proper data table with sorting, filtering, and better visual hierarchy.",
+      "acceptanceCriteria": [
+        "Sort dropdown: by priority (default), created date, status, title",
+        "Filter chips for status (todo, in_progress, done, blocked)",
+        "Sortable column headers with direction indicators",
+        "Improved row hover states with subtle highlight",
+        "Task count badge in header",
+        "Empty state with helpful message"
+      ],
+      "files": ["frontend/src/components/dashboard/TaskQueue.tsx"],
+      "passes": true
+    },
+    {
+      "id": "WCD-005",
+      "title": "Implement LobbyFeed Activity Stream",
+      "priority": 5,
+      "description": "Create the missing LobbyFeed component as a real-time activity stream showing agent actions, task updates, and system events.",
+      "acceptanceCriteria": [
+        "Shows chronological feed of events (newest first)",
+        "Event types: task created/updated, agent registered, claims, conflicts",
+        "Each event has icon, timestamp, description",
+        "Animated entry for new events",
+        "Max 50 events shown, auto-scroll to top on new",
+        "Filter by event type"
+      ],
+      "files": ["frontend/src/components/lobby/LobbyFeed.tsx", "frontend/src/components/lobby/index.ts", "frontend/src/pages/ControlRoomPage.tsx"],
+      "passes": false
+    },
+    {
+      "id": "WCD-006",
+      "title": "Agent Ops Panel - Quick Actions",
+      "priority": 6,
+      "description": "Implement AgentOpsPanel with quick actions for agent management and system controls.",
+      "acceptanceCriteria": [
+        "Panel shows in sidebar or collapsible drawer",
+        "Quick actions: Refresh All, Clear Stale Claims, View Conflicts",
+        "Agent count by type (Claude, Cursor, Windsurf, Other)",
+        "System status indicators (API health, WS connection)",
+        "Action buttons with loading states",
+        "Collapsible sections for different action groups"
+      ],
+      "files": ["frontend/src/components/dashboard/AgentOpsPanel.tsx"],
+      "passes": false
+    },
+    {
+      "id": "WCD-007",
+      "title": "Enhanced Metrics Page with Burndown Chart",
+      "priority": 7,
+      "description": "Add a burndown chart and improve metrics visualizations with trend indicators and forecasting.",
+      "acceptanceCriteria": [
+        "Add burndown chart component (sprint scope vs completed over time)",
+        "Trend indicators on all metric cards (up/down arrows with percentages)",
+        "Cycle time distribution histogram",
+        "Forecast line showing projected completion",
+        "Improved chart tooltips with detailed data",
+        "Date range selector for metrics (7d, 30d, custom)"
+      ],
+      "files": ["frontend/src/components/metrics/BurndownChart.tsx", "frontend/src/components/metrics/index.ts", "frontend/src/pages/MetricsPage.tsx"],
+      "passes": false
+    },
+    {
+      "id": "WCD-008",
+      "title": "Loading States & Error Boundaries",
+      "priority": 8,
+      "description": "Add proper loading skeletons, error boundaries, and retry mechanisms throughout the app.",
+      "acceptanceCriteria": [
+        "Skeleton loading components for cards, lists, charts",
+        "Error boundary wrapping main content areas",
+        "Fallback UI with retry button on errors",
+        "Loading state for initial data fetch",
+        "Graceful degradation when WebSocket disconnects",
+        "isLoading states in Zustand store"
+      ],
+      "files": ["frontend/src/components/ui/skeleton.tsx", "frontend/src/components/ErrorBoundary.tsx", "frontend/src/store/useScrumStore.ts", "frontend/src/App.tsx"],
+      "passes": true
+    },
+    {
+      "id": "WCD-009",
+      "title": "Improved Task Detail Modal",
+      "priority": 9,
+      "description": "Enhance TaskDetailModal with full task information, edit capabilities, and better visual design.",
+      "acceptanceCriteria": [
+        "Full-screen modal with backdrop blur",
+        "Task header with status badge, priority indicator",
+        "Description section with markdown rendering",
+        "Claims section showing current file claims",
+        "Activity timeline of task events",
+        "Keyboard shortcuts: Escape to close, Tab navigation",
+        "Smooth open/close animations"
+      ],
+      "files": ["frontend/src/components/dashboard/TaskDetailModal.tsx", "frontend/src/components/task/TaskActivity.tsx"],
+      "passes": false
+    },
+    {
+      "id": "WCD-010",
+      "title": "Mobile Responsive Optimization",
+      "priority": 10,
+      "description": "Optimize the dashboard for mobile devices with responsive layouts and touch-friendly interactions.",
+      "acceptanceCriteria": [
+        "Mobile navigation with hamburger menu",
+        "Metrics cards: 2 columns on tablet, 1 on mobile (not 4→1)",
+        "Touch-friendly tap targets (min 44px)",
+        "Swipe gestures for task cards",
+        "Collapsible sections for space efficiency",
+        "Bottom navigation bar on mobile"
+      ],
+      "files": ["frontend/src/components/layout/MobileNav.tsx", "frontend/src/App.tsx", "frontend/tailwind.config.js"],
+      "passes": false
+    },
+    {
+      "id": "WCD-011",
+      "title": "Accessibility Improvements",
+      "priority": 11,
+      "description": "Add ARIA labels, keyboard navigation, and focus indicators for WCAG AA compliance.",
+      "acceptanceCriteria": [
+        "All interactive elements have ARIA labels",
+        "Focus visible indicators on all focusable elements",
+        "Skip to main content link",
+        "Proper heading hierarchy (h1 → h2 → h3)",
+        "Color contrast meets WCAG AA (4.5:1 for text)",
+        "Screen reader announcements for dynamic content"
+      ],
+      "files": ["frontend/src/App.tsx", "frontend/src/index.css", "frontend/src/components/ui/button.tsx"],
+      "passes": false
+    },
+    {
+      "id": "WCD-012",
+      "title": "Polish & Micro-interactions",
+      "priority": 12,
+      "description": "Add final polish with refined animations, hover effects, and visual details that make the dashboard feel premium.",
+      "acceptanceCriteria": [
+        "Subtle page transitions between routes",
+        "Card hover lift effect with shadow",
+        "Status badge pulse animations",
+        "Smooth number counting animations for metrics",
+        "Gradient text effects on headers",
+        "Refined spacing and typography scale",
+        "Consistent border radius (8px standard, 12px cards)"
+      ],
+      "files": ["frontend/src/index.css", "frontend/src/components/ui/card.tsx", "frontend/tailwind.config.js"],
+      "passes": false
+    }
+  ]
+}
